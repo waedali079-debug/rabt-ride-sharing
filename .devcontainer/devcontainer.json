@@ -2,7 +2,10 @@
   "name": "Rabt Backend",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:18",
   "features": {
-    "ghcr.io/devcontainers/features/git:1": {}
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/sshd:1": {
+      "version": "latest"
+    }
   },
   "forwardPorts": [8080],
   "postCreateCommand": "cd backend && npm install",
