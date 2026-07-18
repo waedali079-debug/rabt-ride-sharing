@@ -1,6 +1,6 @@
 class ApiConfig {
-  // غيّر هذا الرابط إلى رابط الخادم الفعلي
-  static const String baseUrl = 'http://localhost:8080';
+  // Backend API URL (GitHub Codespaces)
+  static const String baseUrl = 'https://rabt-backend-qvq7654g5jrxfq5j-8080.app.github.dev';
   static const String apiPrefix = '/api/v1';
 
   // Auth endpoints
@@ -8,7 +8,7 @@ class ApiConfig {
   static const String login = '$apiPrefix/auth/login';
 
   // Profile endpoints
-  static const String profile = '$apiPrefix/profile';
+  static const String profile = '$apiPrefix/users/profile';
 
   // Trips endpoints
   static const String trips = '$apiPrefix/trips';
@@ -56,5 +56,5 @@ class ApiConfig {
   static const String rabtTree = '$apiPrefix/rabt-tree';
 
   // WebSocket
-  static const String wsUrl = 'ws://localhost:8080/api/v1/ws';
+  static const String wsUrl = 'wss://rabt-backend-qvq7654g5jrxfq5j-8080.app.github.dev/api/v1/ws';
 }

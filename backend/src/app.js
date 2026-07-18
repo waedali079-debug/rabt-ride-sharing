@@ -18,6 +18,8 @@ app.use(morgan('combined'));
 app.use(express.json());
 
 app.use('/api/v1/users', usersRouter);
+app.use('/api/v1/auth', usersRouter);
+app.use('/api/v1/profile', usersRouter);
 app.use('/api/v1/trips', tripsRouter);
 app.use('/api/v1/payments', paymentsRouter);
 app.use('/api/v1/sectors', sectorsRouter);

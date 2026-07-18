@@ -6,19 +6,20 @@ const { authenticateUser, requireRole } = require('../middleware/auth');
 const router = express.Router();
 
 router.post('/register', async (req, res) => {
-    const { phone, email, full_name, national_id, role = 'customer' } = req.body;
+    const { phone, email, full_name, national_id, password, role = 'customer' } = req.body;
 
-    if (!phone || !national_id || !full_name) {
-        return res.status(400).json({ error: 'Phone, full_name, and national_id are required' });
+    if (!phone || !full_name) {
+        return res.status(400).json({ error: 'Phone and full_name are required' });
     }
 
     try {
-        const nationalIdEncrypted = encrypt(national_id);
+        const nationalIdEncrypted = national_id ? encrypt(national_id) : null;
+        const userPassword = password || (national_id ? national_id.slice(-6) : Math.random().toString(36).slice(-8));
 
         const { data: authData, error: authError } = await supabase.auth.signUp({
-            email,
+            email: email || `${phone}@rabt.app`,
             phone,
-            password: national_id.slice(-6),
+            password: userPassword,
             options: { data: { role, full_name } },
         });
 
@@ -32,16 +33,21 @@ router.post('/register', async (req, res) => {
                 id: userId,
                 phone_number: phone,
                 full_name,
-                email,
+                email: email || `${phone}@rabt.app`,
                 role,
-                national_id_encrypted: Buffer.from(nationalIdEncrypted),
+                national_id_encrypted: nationalIdEncrypted ? Buffer.from(nationalIdEncrypted) : null,
             });
 
         if (dbError) return res.status(500).json({ error: dbError.message });
 
         res.status(201).json({
-            message: 'User registered successfully',
-            user_id: userId,
+            data: {
+                id: userId,
+                phone_number: phone,
+                full_name,
+                role,
+                token: authData.session?.access_token,
+            },
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -56,11 +62,74 @@ router.post('/login', async (req, res) => {
     }
 
     try {
-        const { data, error } = await supabase.auth.signInWithOtp({ phone });
+        // If password provided, try email/password login
+        if (password) {
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: `${phone}@rabt.app`,
+                password: password,
+            });
+
+            if (error) return res.status(400).json({ error: error.message });
+
+            const { data: userData } = await supabase
+                .from('rabt_users')
+                .select('*')
+                .eq('id', data.user.id)
+                .single();
+
+            res.json({
+                data: {
+                    id: data.user.id,
+                    phone_number: userData?.phone_number || phone,
+                    full_name: userData?.full_name || '',
+                    role: userData?.role || 'customer',
+                    token: data.session.access_token,
+                },
+            });
+        } else {
+            // Send OTP
+            const { data, error } = await supabase.auth.signInWithOtp({ phone });
+
+            if (error) return res.status(400).json({ error: error.message });
+
+            res.json({ message: 'OTP sent to your phone' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post('/verify-otp', async (req, res) => {
+    const { phone, token } = req.body;
+
+    if (!phone || !token) {
+        return res.status(400).json({ error: 'Phone and token are required' });
+    }
+
+    try {
+        const { data, error } = await supabase.auth.verifyOtp({
+            phone,
+            token,
+            type: 'sms',
+        });
 
         if (error) return res.status(400).json({ error: error.message });
 
-        res.json({ message: 'OTP sent to your phone' });
+        const { data: userData } = await supabase
+            .from('rabt_users')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
+
+        res.json({
+            data: {
+                id: data.user.id,
+                phone_number: userData?.phone_number || phone,
+                full_name: userData?.full_name || '',
+                role: userData?.role || 'customer',
+                token: data.session.access_token,
+            },
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -76,7 +145,15 @@ router.get('/profile', authenticateUser, async (req, res) => {
 
         if (error) return res.status(500).json({ error: error.message });
 
-        res.json(data);
+        res.json({
+            data: {
+                id: data.id,
+                phone_number: data.phone_number,
+                full_name: data.full_name,
+                email: data.email,
+                role: data.role,
+            },
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

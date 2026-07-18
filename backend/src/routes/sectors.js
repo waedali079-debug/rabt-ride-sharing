@@ -12,7 +12,7 @@ router.get('/', async (req, res) => {
 
         if (error) return res.status(500).json({ error: error.message });
 
-        res.json(data);
+        res.json(data || []);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -30,7 +30,7 @@ router.get('/:sectorCode', async (req, res) => {
 
         if (error) return res.status(500).json({ error: error.message });
 
-        res.json(data);
+        res.json({ data });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

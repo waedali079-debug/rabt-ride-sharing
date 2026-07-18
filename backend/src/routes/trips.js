@@ -14,7 +14,7 @@ router.get('/', authenticateUser, async (req, res) => {
 
         if (error) return res.status(500).json({ error: error.message });
 
-        res.json(data);
+        res.json({ data: data || [] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -44,7 +44,7 @@ router.post('/', authenticateUser, async (req, res) => {
 
         if (error) return res.status(500).json({ error: error.message });
 
-        res.status(201).json({ message: 'Trip created', trip: data });
+        res.status(201).json({ data, message: 'Trip created' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -66,7 +66,7 @@ router.get('/:tripId', authenticateUser, async (req, res) => {
             return res.status(403).json({ error: 'Not authorized to view this trip' });
         }
 
-        res.json(data);
+        res.json({ data });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

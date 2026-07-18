@@ -36,7 +36,7 @@ router.post('/', authenticateUser, async (req, res) => {
 
         if (error) return res.status(500).json({ error: error.message });
 
-        res.status(201).json({ message: 'Payment created', payment: data });
+        res.status(201).json({ data, message: 'Payment created' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -54,7 +54,7 @@ router.get('/:paymentId', authenticateUser, async (req, res) => {
 
         if (error) return res.status(500).json({ error: error.message });
 
-        res.json(data);
+        res.json({ data });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -79,7 +79,7 @@ router.patch('/:paymentId/status', authenticateUser, async (req, res) => {
 
         if (error) return res.status(500).json({ error: error.message });
 
-        res.json({ message: 'Payment status updated', payment: data });
+        res.json({ data, message: 'Payment status updated' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
