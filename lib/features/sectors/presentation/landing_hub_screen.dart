@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:rabt_app/features/sectors/data/sector_service.dart';
-import 'package:rabt_app/features/sectors/domain/sector_model.dart';
-import 'package:rabt_app/features/trips/presentation/request_trip_screen.dart';
+import 'package:rabt/features/sectors/data/sector_service.dart';
+import 'package:rabt/features/sectors/domain/sector_model.dart';
+import 'package:rabt/features/trips/presentation/request_trip_screen.dart';
 
 class LandingHubScreen extends StatefulWidget {
   const LandingHubScreen({Key? key}) : super(key: key);

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:rabt_app/features/auth/presentation/phone_input_screen.dart';
-import 'package:rabt_app/features/sectors/presentation/landing_hub_screen.dart';
+import 'package:rabt/features/auth/presentation/phone_input_screen.dart';
+import 'package:rabt/features/sectors/presentation/landing_hub_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

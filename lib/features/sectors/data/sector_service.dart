@@ -9,7 +9,7 @@ class SectorService {
       final response = await _client
           .from('rabt_sectors')
           .select()
-          .order('code', ascending: true);
+          .order('sector_code', ascending: true);
 
       if (response.isEmpty) {
         throw Exception('No sectors found');

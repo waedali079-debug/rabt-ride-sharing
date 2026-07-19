@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:rabt_app/core/services/auth_service.dart';
+import 'package:rabt/core/services/auth_service.dart';
 import 'otp_verification_screen.dart';
 
 class PhoneInputScreen extends StatefulWidget {
