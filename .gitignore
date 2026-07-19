@@ -43,6 +43,11 @@ mobile/android/app/debug/
 mobile/android/app/profile/
 mobile/android/app/release/
 
+# Signing
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
+
 # iOS
 mobile/ios/Pods/
 mobile/ios/.symlinks/

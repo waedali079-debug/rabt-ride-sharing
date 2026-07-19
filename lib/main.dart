@@ -153,7 +153,14 @@ class WelcomeScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 20),
-              TextButton(onPressed: () {}, child: Text('تصفح كزائر', style: TextStyle(color: Theme.of(context).primaryColor))),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (context) => const LandingHubScreen(),
+                  ));
+                },
+                child: Text('تصفح كزائر', style: TextStyle(color: Theme.of(context).primaryColor)),
+              ),
               const Spacer(flex: 1),
             ],
           ),
