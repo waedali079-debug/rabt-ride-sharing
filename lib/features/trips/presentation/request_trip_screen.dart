@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:rabt/features/sectors/domain/sector_model.dart';
 import 'package:rabt/features/trips/data/trip_service.dart';
+import 'package:rabt/features/trips/presentation/tracking_screen.dart';
 
 class RequestTripScreen extends StatefulWidget {
   final Sector sector;
@@ -70,8 +71,14 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
 
     if (result['success']) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم العثور على سائق! جاري التتبع...')),
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TrackingScreen(
+              tripId: result['trip_id'],
+              sector: widget.sector,
+            ),
+          ),
         );
       }
     } else {
