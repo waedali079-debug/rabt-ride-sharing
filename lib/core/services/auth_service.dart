@@ -4,10 +4,7 @@ class AuthService {
   final SupabaseClient _client = Supabase.instance.client;
 
   Future<void> sendOtp(String phoneNumber) async {
-    await _client.auth.signInWithOtp(
-      phone: phoneNumber,
-      channel: OtpChannel.sms,
-    );
+    await _client.auth.signInWithOtp(phone: phoneNumber);
   }
 
   Future<Session?> verifyOtp(String phoneNumber, String token) async {
