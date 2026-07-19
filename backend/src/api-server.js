@@ -117,6 +117,27 @@ function generateOtp() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// Sanitize phone number to E.164 format
+function sanitizePhone(phone) {
+    let cleanPhone = phone.trim().replace(/\s/g, '');
+    
+    if (!cleanPhone.startsWith('+')) {
+        cleanPhone = '+' + cleanPhone;
+    }
+    
+    // Fix Jordan numbers: +962962... -> +962...
+    if (cleanPhone.startsWith('+962962')) {
+        cleanPhone = '+962' + cleanPhone.substring(7);
+    }
+    
+    // Fix +9620... -> +962...
+    if (cleanPhone.startsWith('+9620')) {
+        cleanPhone = '+962' + cleanPhone.substring(5);
+    }
+    
+    return cleanPhone;
+}
+
 // ==========================================================
 // AUTH ENDPOINTS
 // ==========================================================
@@ -129,12 +150,14 @@ app.post('/api/v1/auth/send-otp', async (req, res) => {
         return res.status(400).json({ error: 'Phone number is required' });
     }
 
+    const sanitizedPhone = sanitizePhone(phone);
+
     try {
         // Rate limiting: max 3 OTPs per phone per 10 minutes
         const { count } = await supabase
             .from('rabt_otps')
             .select('*', { count: 'exact', head: true })
-            .eq('phone_number', phone)
+            .eq('phone_number', sanitizedPhone)
             .eq('purpose', 'login')
             .eq('is_used', false)
             .gte('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString());
@@ -153,7 +176,7 @@ app.post('/api/v1/auth/send-otp', async (req, res) => {
         const { error: dbError } = await supabase
             .from('rabt_otps')
             .insert({
-                phone_number: phone,
+                phone_number: sanitizedPhone,
                 otp_code: otpCode,
                 purpose: 'login',
                 expires_at: expiresAt.toISOString(),
@@ -166,7 +189,7 @@ app.post('/api/v1/auth/send-otp', async (req, res) => {
 
         // Send OTP via Infobip
         const otpMessage = `رمز التحقق من ربط: ${otpCode}\nصالح لمدة 5 دقائق.\nYour RABT verification code: ${otpCode}`;
-        await sendSmsViaInfobip(phone, otpMessage);
+        await sendSmsViaInfobip(sanitizedPhone, otpMessage);
 
         res.json({ 
             message: 'OTP sent successfully',
@@ -186,12 +209,14 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
         return res.status(400).json({ error: 'Phone and OTP are required' });
     }
 
+    const sanitizedPhone = sanitizePhone(phone);
+
     try {
         // Find valid OTP
         const { data: otpRecord, error: findError } = await supabase
             .from('rabt_otps')
             .select('*')
-            .eq('phone_number', phone)
+            .eq('phone_number', sanitizedPhone)
             .eq('otp_code', otp)
             .eq('purpose', 'login')
             .eq('is_used', false)
@@ -214,7 +239,7 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
         const { data: existingUser } = await supabase
             .from('rabt_users')
             .select('*')
-            .eq('phone_number', phone)
+            .eq('phone_number', sanitizedPhone)
             .single();
 
         let userId;
@@ -225,13 +250,13 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
         } else {
             // Create new user via Supabase Auth
             const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: `${phone}@rabt.app`,
-                phone,
+                email: `${sanitizedPhone}@rabt.app`,
+                phone: sanitizedPhone,
                 password: Math.random().toString(36).slice(-8),
                 options: { 
                     data: { 
                         role: 'customer',
-                        phone_number: phone 
+                        phone_number: sanitizedPhone 
                     } 
                 },
             });
@@ -249,7 +274,7 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
                 .from('rabt_users')
                 .insert({
                     id: userId,
-                    phone_number: phone,
+                    phone_number: sanitizedPhone,
                     role: 'customer',
                     full_name: '',
                 });
@@ -271,7 +296,7 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
             { 
                 id: userId, 
                 role: userData?.role || 'customer', 
-                phone: phone,
+                phone: sanitizedPhone,
                 full_name: userData?.full_name || ''
             },
             JWT_SECRET,
@@ -282,7 +307,7 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
             token: appToken,
             user: {
                 id: userId,
-                phone_number: userData?.phone_number || phone,
+                phone_number: userData?.phone_number || sanitizedPhone,
                 full_name: userData?.full_name || '',
                 role: userData?.role || 'customer',
             },

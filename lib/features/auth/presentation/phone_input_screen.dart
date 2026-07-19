@@ -16,13 +16,21 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
   final AuthService _authService = AuthService();
   bool _isLoading = false;
 
-  Country _selectedCountry = CountryParser.parse('SA');
+  Country _selectedCountry = CountryParser.parse('JO');
 
-  String get _fullPhone => '+${_selectedCountry.phoneCode}${_phoneController.text.trim()}';
+  String _formatPhone(String rawPhone) {
+    String cleanPhone = rawPhone.replaceAll(RegExp(r'[^\d]'), '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = cleanPhone.substring(1);
+    }
+    return '+${_selectedCountry.phoneCode}$cleanPhone';
+  }
+
+  String get _fullPhone => _formatPhone(_phoneController.text.trim());
 
   Future<void> _sendOtp() async {
     final rawPhone = _phoneController.text.trim();
-    if (rawPhone.length < 5) {
+    if (rawPhone.length < 8) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('الرجاء إدخال رقم هاتف صحيح')),
       );
