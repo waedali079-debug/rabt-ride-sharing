@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:country_picker/country_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:rabt/core/services/auth_service.dart';
 import 'otp_verification_screen.dart';
 
@@ -36,6 +35,13 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
       await _authService.sendOtp(_fullPhone);
 
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم إرسال الرمز بنجاح'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -43,16 +49,10 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
           ),
         );
       }
-    } on AuthException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ: ${e.message}')),
-        );
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('حدث خطأ غير متوقع')),
+          SnackBar(content: Text('خطأ: ${e.toString()}')),
         );
       }
     } finally {

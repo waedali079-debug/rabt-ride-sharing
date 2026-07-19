@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:rabt/core/services/auth_service.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
@@ -18,8 +17,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   bool _isLoading = false;
 
   Future<void> _verifyOtp() async {
-    final token = _otpController.text.trim();
-    if (token.length != 6) {
+    final otp = _otpController.text.trim();
+    if (otp.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('الرمز يجب أن يكون 6 أرقام')),
       );
@@ -29,22 +28,32 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final session = await _authService.verifyOtp(widget.phoneNumber, token);
-      if (session != null) {
-        if (mounted) {
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        }
+      final success = await _authService.verifyOtp(widget.phoneNumber, otp);
+      
+      if (success && mounted) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم تسجيل الدخول بنجاح'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Navigate to home
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('الرمز غير صحيح')),
+        );
       }
-    } on AuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطأ في التحقق: ${e.message}')),
-      );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('حدث خطأ غير متوقع')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ: ${e.toString()}')),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

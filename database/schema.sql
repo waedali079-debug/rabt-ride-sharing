@@ -125,6 +125,28 @@ CREATE TABLE rabt_disputes (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 11. OTPs Table (For Infobip SMS Verification)
+CREATE TABLE rabt_otps (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    phone_number VARCHAR(20) NOT NULL,
+    otp_code VARCHAR(6) NOT NULL,
+    purpose VARCHAR(20) NOT NULL DEFAULT 'login', -- login, register, reset
+    is_used BOOLEAN DEFAULT FALSE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_otps_phone ON rabt_otps(phone_number);
+CREATE INDEX idx_otps_expires ON rabt_otps(expires_at);
+
+-- Function to cleanup expired OTPs
+CREATE OR REPLACE FUNCTION cleanup_expired_otps()
+RETURNS TRIGGER AS $$
+BEGIN
+    DELETE FROM rabt_otps WHERE expires_at < NOW() - INTERVAL '1 hour';
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- ==========================================================
 -- FUNCTIONS & TRIGGERS
 -- ==========================================================

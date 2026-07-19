@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:rabt/core/services/auth_service.dart';
 import 'package:rabt/features/auth/presentation/phone_input_screen.dart';
 import 'package:rabt/features/sectors/presentation/landing_hub_screen.dart';
 
@@ -11,16 +11,17 @@ void main() async {
     DeviceOrientation.portraitUp,
   ]);
 
-  await Supabase.initialize(
-    url: 'https://dbrpqtldkjqphyzrxwww.supabase.co', 
-    anonKey: 'sb_publishable_Qlqi07Ey5o3CWQY22TOFwQ_LyCbCa0C',
-  );
+  // Initialize auth service (loads saved token)
+  final authService = AuthService();
+  await authService.init();
   
-  runApp(const RabtApp());
+  runApp(RabtApp(authService: authService));
 }
 
 class RabtApp extends StatelessWidget {
-  const RabtApp({Key? key}) : super(key: key);
+  final AuthService authService;
+
+  const RabtApp({Key? key, required this.authService}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -30,16 +31,9 @@ class RabtApp extends StatelessWidget {
       theme: _buildRabtTheme(Brightness.light),
       darkTheme: _buildRabtTheme(Brightness.dark),
       themeMode: ThemeMode.system,
-      home: StreamBuilder<AuthState>(
-        stream: Supabase.instance.client.auth.onAuthStateChange,
-        builder: (context, snapshot) {
-          final session = Supabase.instance.client.auth.currentSession;
-          if (session != null) {
-            return const LandingHubScreen();
-          }
-          return const WelcomeScreen();
-        },
-      ),
+      home: authService.isAuthenticated
+          ? const LandingHubScreen()
+          : const WelcomeScreen(),
     );
   }
 

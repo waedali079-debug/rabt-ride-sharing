@@ -1,0 +1,8 @@
+{
+  "project_id": "dbrpqtldkjqphyzrxwww",
+  "functions": {
+    "send-sms": {
+      "verify_jwt": false
+    }
+  }
+}

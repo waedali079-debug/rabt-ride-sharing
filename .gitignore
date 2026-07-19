@@ -58,3 +58,4 @@ mobile/ios/Flutter/Flutter.podspec
 
 # Supabase
 backend/.env
+api_keys.env
