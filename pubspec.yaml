@@ -31,6 +31,7 @@ dependencies:
   geolocator: ^10.1.0
   flutter_map: ^6.1.0
   latlong2: ^0.9.1
+  country_picker: ^2.0.28
 
 dev_dependencies:
   flutter_test:

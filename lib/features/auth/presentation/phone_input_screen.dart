@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:country_picker/country_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:rabt/core/services/auth_service.dart';
-import 'package:rabt/core/models/country.dart';
 import 'otp_verification_screen.dart';
 
 class PhoneInputScreen extends StatefulWidget {
@@ -16,9 +16,10 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final AuthService _authService = AuthService();
   bool _isLoading = false;
-  Country _selectedCountry = Country.defaultCountry;
 
-  String get _fullPhone => '${_selectedCountry.dialCode}${_phoneController.text.trim()}';
+  Country _selectedCountry = CountryParser.parse('SA');
+
+  String get _fullPhone => '+${_selectedCountry.phoneCode}${_phoneController.text.trim()}';
 
   Future<void> _sendOtp() async {
     final rawPhone = _phoneController.text.trim();
@@ -59,29 +60,25 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
     }
   }
 
-  void _openCountryPicker() {
-    showModalBottomSheet(
+  void _showCountryPicker() {
+    showCountryPicker(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      showPhoneCode: true,
+      favorite: ['SA', 'AE', 'EG', 'KW', 'QA', 'BH', 'OM'],
+      countryListTheme: CountryListThemeData(
+        bottomSheetHeight: MediaQuery.of(context).size.height * 0.7,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        inputDecoration: InputDecoration(
+          hintText: 'ابحث عن الدولة...',
+          prefixIcon: const Icon(Icons.search),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+        ),
       ),
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.5,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (context, scrollController) {
-            return CountryPickerSheet(
-              scrollController: scrollController,
-              onSelected: (country) {
-                setState(() => _selectedCountry = country);
-                Navigator.pop(context);
-              },
-            );
-          },
-        );
+      onSelect: (Country country) {
+        setState(() => _selectedCountry = country);
       },
     );
   }
@@ -112,7 +109,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
               Row(
                 children: [
                   GestureDetector(
-                    onTap: _openCountryPicker,
+                    onTap: _showCountryPicker,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                       decoration: BoxDecoration(
@@ -122,10 +119,10 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(_selectedCountry.flag, style: const TextStyle(fontSize: 20)),
+                          Text(_selectedCountry.flagEmoji, style: const TextStyle(fontSize: 20)),
                           const SizedBox(width: 6),
                           Text(
-                            _selectedCountry.dialCode,
+                            '+${_selectedCountry.phoneCode}',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 16),
                           ),
                           const SizedBox(width: 4),
@@ -141,7 +138,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                       keyboardType: TextInputType.phone,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: InputDecoration(
-                        hintText: _selectedCountry.code == 'SA' ? '05XXXXXXXX' : 'رقم الهاتف',
+                        hintText: _selectedCountry.example,
                       ),
                       style: Theme.of(context).textTheme.titleLarge,
                       textDirection: TextDirection.ltr,
@@ -152,7 +149,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'مثال: ${_selectedCountry.dialCode} ${_selectedCountry.code == 'SA' ? '5XXXXXXXX' : 'XXXXXXXXXX'}',
+                'مثال: +${_selectedCountry.phoneCode} ${_selectedCountry.example}',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 13),
                 textAlign: TextAlign.center,
               ),
@@ -172,95 +169,6 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class CountryPickerSheet extends StatefulWidget {
-  final ScrollController scrollController;
-  final Function(Country) onSelected;
-
-  const CountryPickerSheet({
-    Key? key,
-    required this.scrollController,
-    required this.onSelected,
-  }) : super(key: key);
-
-  @override
-  State<CountryPickerSheet> createState() => _CountryPickerSheetState();
-}
-
-class _CountryPickerSheetState extends State<CountryPickerSheet> {
-  final TextEditingController _searchController = TextEditingController();
-  List<Country> _filtered = Country.countries;
-
-  void _search(String query) {
-    setState(() => _filtered = Country.search(query));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          margin: const EdgeInsets.only(top: 12),
-          width: 40,
-          height: 4,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade300,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            'اختر الدولة',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 20),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: TextField(
-            controller: _searchController,
-            onChanged: _search,
-            decoration: InputDecoration(
-              hintText: 'ابحث عن الدولة...',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                        _search('');
-                      },
-                    )
-                  : null,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: ListView.builder(
-            controller: widget.scrollController,
-            itemCount: _filtered.length,
-            itemBuilder: (context, index) {
-              final country = _filtered[index];
-              return ListTile(
-                leading: Text(country.flag, style: const TextStyle(fontSize: 24)),
-                title: Text(country.name),
-                trailing: Text(
-                  country.dialCode,
-                  style: TextStyle(
-                    color: Theme.of(context).primaryColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                onTap: () => widget.onSelected(country),
-              );
-            },
-          ),
-        ),
-      ],
     );
   }
 }
