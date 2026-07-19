@@ -299,8 +299,8 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
 // SECTORS ENDPOINTS
 // ==========================================================
 
-// Get all sectors
-app.get('/api/v1/sectors', authenticateToken, async (req, res) => {
+// Get all sectors (Public - no auth required)
+app.get('/api/v1/sectors', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('rabt_sectors')
@@ -314,8 +314,8 @@ app.get('/api/v1/sectors', authenticateToken, async (req, res) => {
     }
 });
 
-// Get sector by code
-app.get('/api/v1/sectors/:code', authenticateToken, async (req, res) => {
+// Get sector by code (Public - no auth required)
+app.get('/api/v1/sectors/:code', async (req, res) => {
     const { code } = req.params;
     
     try {
