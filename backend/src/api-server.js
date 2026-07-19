@@ -474,6 +474,28 @@ app.put('/api/v1/user/profile', authenticateToken, async (req, res) => {
 });
 
 // ==========================================================
+// DEBUG ENDPOINTS (REMOVE IN PRODUCTION)
+// ==========================================================
+app.post('/api/v1/debug/otp-check', async (req, res) => {
+    const { phone } = req.body;
+    const sanitizedPhone = sanitizePhone(phone || '');
+    
+    const { data, error } = await supabase
+        .from('rabt_otps')
+        .select('*')
+        .eq('phone_number', sanitizedPhone)
+        .order('created_at', { ascending: false })
+        .limit(5);
+    
+    res.json({
+        phone_queried: sanitizedPhone,
+        now: new Date().toISOString(),
+        records: data || [],
+        error: error?.message || null,
+    });
+});
+
+// ==========================================================
 // ROUTING ENDPOINTS (GraphHopper)
 // ==========================================================
 app.use('/api/v1/routing', authenticateToken, routingRouter);
