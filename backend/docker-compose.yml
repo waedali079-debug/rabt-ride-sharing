@@ -7,14 +7,15 @@ services:
     ports:
       - "8989:8989"
     volumes:
-      - ./graphhopper-data:/data
+      - ./graphhopper-data/jordan-latest.osm.pbf:/graphhopper/jordan-latest.osm.pbf
+      - ./graphhopper-data/config.yml:/graphhopper/config-example.yml
+      - ./graphhopper-data/graph-cache:/graphhopper/graph-cache
     environment:
       - JAVA_OPTS=-Xmx2G -Xms1G
-    command: --config /data/config.yml --import /data/jordan-latest.osm.pbf
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8989/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 120s

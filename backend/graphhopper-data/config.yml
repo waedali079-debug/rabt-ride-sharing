@@ -1,46 +1,42 @@
-# GraphHopper Configuration for Jordan
-# Optimized for ride-sharing services
+graphhopper:
+  datareader.file: jordan-latest.osm.pbf
+  graph.location: graph-cache
 
-# Graph flags - enable car and truck routing
-graph.flag_encoders: car,small_truck,truck
+  profiles:
+    - name: car
+      custom_model_files: [car.json]
+    - name: small_truck
+      custom_model_files: [truck.json]
+    - name: truck
+      custom_model_files: [truck.json]
 
-# Prepare contraction hierarchies for faster routing
-prepare.ch.weightings: fastest,shortest
+  profiles_ch:
+    - profile: car
+    - profile: small_truck
+    - profile: truck
 
-# Default routing algorithm
-routing.default_algorithm: astarbi
+  graph.encoded_values: |
+    car_access, car_average_speed, country, road_class, roundabout, max_speed, road_environment,
+    ferry_speed, hgv, road_access, max_width, max_height, max_weight, max_weight_except
 
-# Elevation settings (disable for faster processing)
-graph.elevation.enable: false
+  prepare.min_network_size: 200
+  prepare.subnetworks.threads: 1
+  graph.dataaccess.default_type: RAM_STORE
+  import.osm.ignored_highways: ''
 
-# Logging
-graph.verbose: false
+server:
+  application_connectors:
+  - type: http
+    port: 8989
+    max_request_header_size: 50k
+  request_log:
+      appenders: []
+  admin_connectors:
+  - type: http
+    port: 8990
 
-# Server settings
-server.port: 8989
-server.host: 0.0.0.0
-
-# Routing limits
-routing.max_visited_nodes: 1000000
-
-# Profile settings for different vehicle types
-profiles:
-  - name: car
-    vehicle: car
-    weighting: fastest
-    
-  - name: car_fastest
-    vehicle: car
-    weighting: fastest
-    
-  - name: car_shortest
-    vehicle: car
-    weighting: shortest
-    
-  - name: small_truck
-    vehicle: small_truck
-    weighting: fastest
-    
-  - name: truck
-    vehicle: truck
-    weighting: fastest
+logging:
+  appenders:
+    - type: console
+      time_zone: UTC
+      log_format: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
