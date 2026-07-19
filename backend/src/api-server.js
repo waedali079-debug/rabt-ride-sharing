@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
@@ -248,28 +249,10 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
         if (existingUser) {
             userId = existingUser.id;
         } else {
-            // Create new user via Supabase Auth
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: `${sanitizedPhone}@rabt.app`,
-                phone: sanitizedPhone,
-                password: Math.random().toString(36).slice(-8),
-                options: { 
-                    data: { 
-                        role: 'customer',
-                        phone_number: sanitizedPhone 
-                    } 
-                },
-            });
-
-            if (authError) {
-                console.error('Auth signup error:', authError);
-                return res.status(500).json({ error: 'Failed to create user' });
-            }
-
-            userId = authData.user.id;
+            // Create new user directly in our database (no Supabase Auth)
+            userId = crypto.randomUUID();
             isNewUser = true;
 
-            // Create user in our database
             const { error: dbError } = await supabase
                 .from('rabt_users')
                 .insert({
@@ -281,6 +264,7 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
 
             if (dbError) {
                 console.error('DB insert error:', dbError);
+                return res.status(500).json({ error: 'Failed to create user' });
             }
         }
 
