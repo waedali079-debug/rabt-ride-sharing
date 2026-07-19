@@ -11,8 +11,8 @@ class ApiClient {
   static const String _tokenKey = 'auth_token';
   static const String _baseUrlKey = 'api_base_url';
 
-  // Default base URL (emulator)
-  static const String _defaultBaseUrl = 'http://10.0.2.2:8080/api';
+  // Production base URL (Render)
+  static const String _defaultBaseUrl = 'https://rabt-api-server.onrender.com/api';
 
   ApiClient._internal() {
     _dio = Dio(BaseOptions(
