@@ -1,0 +1,186 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model rabt_audit_logs {
+  id           BigInt   @id @default(autoincrement())
+  table_name   String   @db.VarChar(50)
+  action_type  String   @db.VarChar(10)
+  record_id    String   @db.Uuid
+  old_data     Json?
+  new_data     Json?
+  performed_by String   @default(dbgenerated("CURRENT_USER")) @db.VarChar(100)
+  captured_at  DateTime @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rabt_driver_locations {
+  driver_id            String                   @id @db.Uuid
+  live_coordinates     Unsupported("geography")
+  last_ping_at         DateTime                 @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  rabt_driver_profiles rabt_driver_profiles     @relation(fields: [driver_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([live_coordinates], map: "idx_rabt_driver_spatial_geo", type: Gist)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rabt_driver_profiles {
+  user_id               String                 @id @db.Uuid
+  assigned_sector       String                 @db.VarChar(10)
+  vehicle_plate_number  String                 @unique @db.VarChar(20)
+  vehicle_model         String                 @db.VarChar(50)
+  is_available          Boolean                @default(false)
+  current_speed_kmh     Decimal                @default(0.00) @db.Decimal(5, 2)
+  rating_average        Decimal                @default(5.00) @db.Decimal(3, 2)
+  total_trips_completed Int                    @default(0)
+  created_at            DateTime               @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  updated_at            DateTime               @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  rabt_driver_locations rabt_driver_locations?
+  rabt_sectors          rabt_sectors           @relation(fields: [assigned_sector], references: [sector_code], onDelete: NoAction, onUpdate: NoAction)
+  rabt_users            rabt_users             @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  rabt_trips            rabt_trips?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rabt_payments {
+  id                    String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  trip_id               String              @unique @db.Uuid
+  amount                Decimal             @db.Decimal(10, 2)
+  status                rabt_payment_status @default(pending)
+  transaction_reference String?             @unique @db.VarChar(100)
+  created_at            DateTime            @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  updated_at            DateTime            @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  rabt_trips            rabt_trips          @relation(fields: [trip_id], references: [id], onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model rabt_sectors {
+  sector_code          String                 @id @db.VarChar(10)
+  name_ar              String                 @unique @db.VarChar(50)
+  name_en              String                 @unique @db.VarChar(50)
+  base_fare            Decimal                @db.Decimal(10, 2)
+  per_km_rate          Decimal                @db.Decimal(10, 2)
+  per_minute_rate      Decimal                @db.Decimal(10, 2)
+  is_operational       Boolean                @default(true)
+  created_at           DateTime               @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  updated_at           DateTime               @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  rabt_driver_profiles rabt_driver_profiles[]
+  rabt_trips           rabt_trips[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rabt_trees {
+  user_id         String          @id @db.Uuid
+  growth_stage    rabt_tree_stage @default(seedling)
+  active_season   rabt_season     @default(spring)
+  total_leaves    Int             @default(0)
+  total_fruits    Int             @default(0)
+  has_golden_halo Boolean         @default(false)
+  updated_at      DateTime        @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  rabt_users      rabt_users      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rabt_trips {
+  id                         String                  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  customer_id                String                  @db.Uuid
+  driver_id                  String?                 @unique(map: "idx_prevent_driver_double_booking", where: raw("(status = ANY (ARRAY['accepted'::rabt_trip_status, 'arrived'::rabt_trip_status, 'active'::rabt_trip_status]))")) @db.Uuid
+  sector_code                String                  @db.VarChar(10)
+  status                     rabt_trip_status        @default(requested)
+  pickup_location            Unsupported("geometry")
+  dropoff_location           Unsupported("geometry")
+  estimated_price            Decimal                 @db.Decimal(10, 2)
+  final_price                Decimal?                @db.Decimal(10, 2)
+  estimated_duration_minutes Int
+  actual_duration_minutes    Int?
+  created_at                 DateTime                @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  accepted_at                DateTime?               @db.Timestamptz(6)
+  started_at                 DateTime?               @db.Timestamptz(6)
+  ended_at                   DateTime?               @db.Timestamptz(6)
+  updated_at                 DateTime                @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  rabt_payments              rabt_payments?
+  rabt_users                 rabt_users              @relation(fields: [customer_id], references: [id], onUpdate: NoAction)
+  rabt_driver_profiles       rabt_driver_profiles?   @relation(fields: [driver_id], references: [user_id], onDelete: Restrict, onUpdate: NoAction)
+  rabt_sectors               rabt_sectors            @relation(fields: [sector_code], references: [sector_code], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([customer_id], map: "idx_trips_customer")
+  @@index([pickup_location], map: "idx_trips_pickup_spatial", type: Gist)
+  @@index([status, sector_code], map: "idx_trips_status_sector")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rabt_users {
+  id                    String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  phone_number          String                @unique @db.VarChar(20)
+  full_name             String                @db.VarChar(100)
+  email                 String                @unique @db.VarChar(255)
+  role                  rabt_user_role        @default(customer)
+  is_active             Boolean               @default(true)
+  is_verified           Boolean               @default(false)
+  national_id_encrypted Bytes
+  created_at            DateTime              @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  updated_at            DateTime              @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  rabt_driver_profiles  rabt_driver_profiles?
+  rabt_trees            rabt_trees?
+  rabt_trips            rabt_trips[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model spatial_ref_sys {
+  srid      Int     @id
+  auth_name String? @db.VarChar(256)
+  auth_srid Int?
+  srtext    String? @db.VarChar(2048)
+  proj4text String? @db.VarChar(2048)
+}
+
+enum rabt_payment_status {
+  pending
+  escrowed
+  released
+  refunded
+  failed
+}
+
+enum rabt_season {
+  spring
+  summer
+  autumn
+  winter
+}
+
+enum rabt_tree_stage {
+  seedling
+  young
+  mature
+  ancient
+  legendary
+}
+
+enum rabt_trip_status {
+  requested
+  searching
+  accepted
+  arrived
+  active
+  completed
+  canceled
+}
+
+enum rabt_user_role {
+  customer
+  driver
+  admin
+  super_admin
+}
