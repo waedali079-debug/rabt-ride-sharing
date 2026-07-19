@@ -1,21 +1,17 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:rabt/core/services/api_client.dart';
 import '../domain/sector_model.dart';
 
 class SectorService {
-  final SupabaseClient _client = Supabase.instance.client;
+  final ApiClient _apiClient = ApiClient();
 
   Future<List<Sector>> fetchSectors() async {
     try {
-      final response = await _client
-          .from('rabt_sectors')
-          .select()
-          .order('sector_code', ascending: true);
+      final response = await _apiClient.get('/v1/sectors');
 
-      if (response.isEmpty) {
-        throw Exception('No sectors found');
+      if (response.statusCode == 200 && response.data is List) {
+        return response.data.map<Sector>((data) => Sector.fromMap(data)).toList();
       }
-
-      return response.map<Sector>((data) => Sector.fromMap(data)).toList();
+      throw Exception('No sectors found');
     } catch (e) {
       throw Exception('Failed to load sectors: $e');
     }

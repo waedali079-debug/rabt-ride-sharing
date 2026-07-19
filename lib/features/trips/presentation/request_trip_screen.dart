@@ -17,10 +17,14 @@ class RequestTripScreen extends StatefulWidget {
 
 class _RequestTripScreenState extends State<RequestTripScreen> {
   final MapController _mapController = MapController();
-  Position? _currentPosition;
-  bool _isLoading = true;
-  bool _isRequesting = false;
   final TripService _tripService = TripService();
+
+  Position? _currentPosition;
+  List<LatLng> _routePoints = [];
+  Map<String, dynamic>? _routeInfo;
+  bool _isLoading = true;
+  bool _isFetchingRoute = false;
+  bool _isRequesting = false;
 
   @override
   void initState() {
@@ -54,6 +58,42 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
       _currentPosition = position;
       _isLoading = false;
     });
+
+    _fetchRoute();
+  }
+
+  Future<void> _fetchRoute() async {
+    if (_currentPosition == null) return;
+
+    setState(() => _isFetchingRoute = true);
+
+    final pickup = LatLng(_currentPosition!.latitude, _currentPosition!.longitude);
+    // نقطة وسط عمّان كوجهة مؤقتة
+    const dropoff = LatLng(31.9539, 35.9106);
+
+    final routeData = await _tripService.fetchRouteWithFare(
+      pickup: pickup,
+      dropoff: dropoff,
+      sectorCode: widget.sector.code,
+    );
+
+    if (routeData != null && routeData['points'] != null) {
+      final List<dynamic> points = routeData['points'];
+      setState(() {
+        _routePoints = points.map<LatLng>((p) => LatLng(p['lat'], p['lng'])).toList();
+        _routeInfo = routeData;
+        _isFetchingRoute = false;
+      });
+
+      if (_routePoints.isNotEmpty) {
+        final bounds = LatLngBounds.fromPoints(_routePoints);
+        _mapController.fitCamera(
+          CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(50.0)),
+        );
+      }
+    } else {
+      setState(() => _isFetchingRoute = false);
+    }
   }
 
   Future<void> _requestRide() async {
@@ -69,18 +109,16 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
 
     setState(() => _isRequesting = false);
 
-    if (result['success']) {
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => TrackingScreen(
-              tripId: result['trip_id'],
-              sector: widget.sector,
-            ),
+    if (result['success'] && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TrackingScreen(
+            tripId: result['trip_id'],
+            sector: widget.sector,
           ),
-        );
-      }
+        ),
+      );
     } else {
       _showError(result['message']);
     }
@@ -117,6 +155,18 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
                       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.rabt.app',
                     ),
+                    if (_routePoints.isNotEmpty)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: _routePoints,
+                            strokeWidth: 5.0,
+                            color: widget.sector.color,
+                            borderColor: Colors.white,
+                            borderStrokeWidth: 1.0,
+                          ),
+                        ],
+                      ),
                     MarkerLayer(
                       markers: [
                         Marker(
@@ -132,6 +182,13 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
                             size: 40.0,
                           ),
                         ),
+                        if (_routePoints.isNotEmpty)
+                          Marker(
+                            point: _routePoints.last,
+                            width: 40.0,
+                            height: 40.0,
+                            child: const Icon(Icons.flag, color: Colors.red, size: 40.0),
+                          ),
                       ],
                     ),
                   ],
@@ -153,25 +210,43 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          'تأكيد موقع الاستلام',
-                          style: Theme.of(context).textTheme.headlineMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${_currentPosition!.latitude.toStringAsFixed(4)}, ${_currentPosition!.longitude.toStringAsFixed(4)}',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 16),
+                        if (_isFetchingRoute)
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 16.0),
+                            child: LinearProgressIndicator(),
+                          ),
+                        if (_routeInfo != null) ...[
+                          Text(
+                            '${_routeInfo!['distanceKm']} كم',
+                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'الوقت المقدر: ${_routeInfo!['durationMinutes']} دقيقة',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          if (_routeInfo!['fare'] != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'التكلفة المقدرة: ${_routeInfo!['fare']['amount']} ${_routeInfo!['fare']['currency']}',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: widget.sector.color,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                        ],
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: widget.sector.color,
                           ),
                           onPressed: _isRequesting ? null : _requestRide,
                           child: _isRequesting
-                              ? const CircularProgressIndicator(
-                                  color: Colors.white)
-                              : const Text('طلب الخدمة الآن'),
+                              ? const CircularProgressIndicator(color: Colors.white)
+                              : const Text('تأكيد وطلب الخدمة'),
                         ),
                       ],
                     ),

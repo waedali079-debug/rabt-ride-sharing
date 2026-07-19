@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:rabt/core/services/tracking_service.dart';
+import 'package:rabt/core/services/auth_service.dart';
 import 'package:rabt/features/sectors/domain/sector_model.dart';
 
 class TrackingScreen extends StatefulWidget {
@@ -26,8 +26,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
   void initState() {
     super.initState();
 
-    final session = Supabase.instance.client.auth.currentSession;
-    final token = session?.accessToken ?? '';
+    final authService = AuthService();
+    final token = authService.token ?? '';
 
     _trackingService = TrackingService(
       tripId: widget.tripId,
