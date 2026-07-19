@@ -14,14 +14,14 @@ class RoutingService {
 
         const { data: sectors } = await supabase
             .from('rabt_sectors')
-            .select('sector_code, fare_base, fare_per_km');
+            .select('code, base_fare, per_km_rate');
 
         if (sectors) {
             this._fareRates = {};
             for (const s of sectors) {
-                this._fareRates[s.sector_code] = {
-                    base: s.fare_base || 5,
-                    perKm: s.fare_per_km || 1.5,
+                this._fareRates[s.code] = {
+                    base: parseFloat(s.base_fare) || 5,
+                    perKm: parseFloat(s.per_km_rate) || 1.5,
                 };
             }
         }

@@ -22,6 +22,8 @@ CREATE TABLE rabt_sectors (
     name VARCHAR(50) NOT NULL,
     color_code VARCHAR(7) NOT NULL,
     icon_name VARCHAR(50) NOT NULL,
+    base_fare DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    per_km_rate DECIMAL(10, 2) NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

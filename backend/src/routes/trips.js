@@ -4,6 +4,28 @@ const { authenticateUser, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
+// ──────────────────────────────────────────────
+// Helper: Calculate fare server-side from sector tariff
+// ──────────────────────────────────────────────
+async function calculateFare(sectorId, distanceKm) {
+    const { data: sector, error } = await supabase
+        .from('rabt_sectors')
+        .select('base_fare, per_km_rate')
+        .eq('id', sectorId)
+        .single();
+
+    if (error || !sector) return null;
+
+    const base = parseFloat(sector.base_fare) || 0;
+    const perKm = parseFloat(sector.per_km_rate) || 0;
+    const dist = parseFloat(distanceKm) || 0;
+
+    return +(base + perKm * dist).toFixed(2);
+}
+
+// ──────────────────────────────────────────────
+// List user's trips
+// ──────────────────────────────────────────────
 router.get('/', authenticateUser, async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -20,24 +42,30 @@ router.get('/', authenticateUser, async (req, res) => {
     }
 });
 
+// ──────────────────────────────────────────────
+// Create trip — fare calculated by server, NOT from client
+// ──────────────────────────────────────────────
 router.post('/', authenticateUser, async (req, res) => {
-    const { sector_code, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, estimated_price, estimated_duration_minutes } = req.body;
+    const { sector_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, distance_km } = req.body;
 
-    if (!sector_code || !pickup_lat || !pickup_lng || !dropoff_lat || !dropoff_lng) {
-        return res.status(400).json({ error: 'sector_code, pickup and dropoff coordinates are required' });
+    if (!sector_id || !pickup_lat || !pickup_lng || !dropoff_lat || !dropoff_lng) {
+        return res.status(400).json({ error: 'sector_id, pickup and dropoff coordinates are required' });
     }
 
     try {
+        // Calculate fare server-side — never trust client-supplied price
+        const fare = await calculateFare(sector_id, distance_km);
+
         const { data, error } = await supabase
             .from('rabt_trips')
             .insert({
                 customer_id: req.user.id,
-                sector_code,
+                sector_id,
                 pickup_location: `SRID=4326;POINT(${pickup_lng} ${pickup_lat})`,
                 dropoff_location: `SRID=4326;POINT(${dropoff_lng} ${dropoff_lat})`,
-                estimated_price: estimated_price || 0,
-                estimated_duration_minutes: estimated_duration_minutes || 30,
-                status: 'requested',
+                distance_km: distance_km || 0,
+                fare: fare,
+                status: 'pending',
             })
             .select()
             .single();
@@ -50,6 +78,9 @@ router.post('/', authenticateUser, async (req, res) => {
     }
 });
 
+// ──────────────────────────────────────────────
+// Get single trip — ownership check
+// ──────────────────────────────────────────────
 router.get('/:tripId', authenticateUser, async (req, res) => {
     const { tripId } = req.params;
 
@@ -62,7 +93,7 @@ router.get('/:tripId', authenticateUser, async (req, res) => {
 
         if (error) return res.status(500).json({ error: error.message });
 
-        if (data.customer_id !== req.user.id && data.driver_id !== req.user.id) {
+        if (data.customer_id !== req.user.id && data.driver_id !== req.user.id && req.user.role !== 'admin') {
             return res.status(403).json({ error: 'Not authorized to view this trip' });
         }
 
@@ -72,52 +103,55 @@ router.get('/:tripId', authenticateUser, async (req, res) => {
     }
 });
 
+// ──────────────────────────────────────────────
+// Accept trip — ATOMIC conditional update prevents race condition
+// ──────────────────────────────────────────────
 router.post('/:tripId/accept', authenticateUser, requireRole('driver'), async (req, res) => {
     const { tripId } = req.params;
+    const driverId = req.user.id;
 
     try {
-        const { data: trip, error: tripError } = await supabase
-            .from('rabt_trips')
-            .select('*')
-            .eq('id', tripId)
-            .single();
-
-        if (tripError) return res.status(500).json({ error: tripError.message });
-
-        if (trip.status !== 'requested') {
-            return res.status(400).json({ error: 'Trip is not available for acceptance' });
-        }
-
-        const { error } = await supabase
+        // Atomic update: only succeeds if trip is still 'pending'
+        const { data: updatedTrip, error } = await supabase
             .from('rabt_trips')
             .update({
-                driver_id: req.user.id,
+                driver_id: driverId,
                 status: 'accepted',
                 accepted_at: new Date().toISOString(),
             })
-            .eq('id', tripId);
+            .eq('id', tripId)
+            .eq('status', 'pending')
+            .select()
+            .single();
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error || !updatedTrip) {
+            return res.status(409).json({
+                error: 'Trip is no longer available or has been accepted by another driver.',
+            });
+        }
 
-        res.json({ message: 'Trip accepted' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.json({ message: 'Trip accepted successfully', trip: updatedTrip });
+    } catch (err) {
+        // Unique index violation — driver already has an active trip
+        if (err.code === '23505') {
+            return res.status(409).json({
+                error: 'You already have an active trip. Please complete it first.',
+            });
+        }
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
+// ──────────────────────────────────────────────
+// Complete trip
+// ──────────────────────────────────────────────
 router.post('/:tripId/complete', authenticateUser, requireRole('driver'), async (req, res) => {
     const { tripId } = req.params;
-    const { final_price, actual_duration_minutes } = req.body;
 
     try {
         const { error } = await supabase
             .from('rabt_trips')
-            .update({
-                status: 'completed',
-                ended_at: new Date().toISOString(),
-                final_price: final_price,
-                actual_duration_minutes: actual_duration_minutes,
-            })
+            .update({ status: 'completed', completed_at: new Date().toISOString() })
             .eq('id', tripId)
             .eq('driver_id', req.user.id);
 
@@ -129,30 +163,37 @@ router.post('/:tripId/complete', authenticateUser, requireRole('driver'), async 
     }
 });
 
+// ──────────────────────────────────────────────
+// Cancel trip — customer or driver or admin
+// ──────────────────────────────────────────────
 router.post('/:tripId/cancel', authenticateUser, async (req, res) => {
     const { tripId } = req.params;
 
     try {
         const { data: trip, error: tripError } = await supabase
             .from('rabt_trips')
-            .select('customer_id, driver_id')
+            .select('customer_id, driver_id, status')
             .eq('id', tripId)
             .single();
 
         if (tripError) return res.status(500).json({ error: tripError.message });
 
-        if (trip.customer_id !== req.user.id && trip.driver_id !== req.user.id) {
+        if (trip.customer_id !== req.user.id && trip.driver_id !== req.user.id && req.user.role !== 'admin') {
             return res.status(403).json({ error: 'Not authorized to cancel this trip' });
+        }
+
+        if (trip.status === 'completed' || trip.status === 'cancelled') {
+            return res.status(400).json({ error: 'Trip already finished' });
         }
 
         const { error } = await supabase
             .from('rabt_trips')
-            .update({ status: 'canceled', ended_at: new Date().toISOString() })
+            .update({ status: 'cancelled' })
             .eq('id', tripId);
 
         if (error) return res.status(500).json({ error: error.message });
 
-        res.json({ message: 'Trip canceled' });
+        res.json({ message: 'Trip cancelled' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
