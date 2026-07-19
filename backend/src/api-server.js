@@ -258,6 +258,7 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
                 .insert({
                     id: userId,
                     phone_number: sanitizedPhone,
+                    email: `${sanitizedPhone}@rabt.app`,
                     role: 'customer',
                     full_name: '',
                 });
