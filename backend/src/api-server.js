@@ -263,8 +263,8 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
                 });
 
             if (dbError) {
-                console.error('DB insert error:', dbError);
-                return res.status(500).json({ error: 'Failed to create user' });
+                console.error('DB insert error:', JSON.stringify(dbError));
+                return res.status(500).json({ error: 'Failed to create user', details: dbError.message || dbError });
             }
         }
 
@@ -464,18 +464,25 @@ app.post('/api/v1/debug/otp-check', async (req, res) => {
     const { phone } = req.body;
     const sanitizedPhone = sanitizePhone(phone || '');
     
-    const { data, error } = await supabase
+    const { data: otps, error: otpErr } = await supabase
         .from('rabt_otps')
         .select('*')
         .eq('phone_number', sanitizedPhone)
         .order('created_at', { ascending: false })
         .limit(5);
     
+    const { data: users, error: userErr } = await supabase
+        .from('rabt_users')
+        .select('*')
+        .eq('phone_number', sanitizedPhone);
+    
     res.json({
         phone_queried: sanitizedPhone,
         now: new Date().toISOString(),
-        records: data || [],
-        error: error?.message || null,
+        otps: otps || [],
+        users: users || [],
+        otp_error: otpErr?.message || null,
+        user_error: userErr?.message || null,
     });
 });
 
