@@ -250,23 +250,27 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
             userId = existingUser.id;
         } else {
             // Create new user directly in our database (no Supabase Auth)
-            userId = crypto.randomUUID();
             isNewUser = true;
 
-            const { error: dbError } = await supabase
+            // Insert with minimal fields, let defaults handle the rest
+            const insertData = {
+                phone_number: sanitizedPhone,
+                email: `${sanitizedPhone}@rabt.app`,
+                role: 'customer',
+            };
+            
+            const { data: insertedUser, error: dbError } = await supabase
                 .from('rabt_users')
-                .insert({
-                    id: userId,
-                    phone_number: sanitizedPhone,
-                    email: `${sanitizedPhone}@rabt.app`,
-                    role: 'customer',
-                    full_name: '',
-                });
+                .insert(insertData)
+                .select('id')
+                .single();
 
             if (dbError) {
                 console.error('DB insert error:', JSON.stringify(dbError));
                 return res.status(500).json({ error: 'Failed to create user', details: dbError.message || dbError });
             }
+
+            userId = insertedUser.id;
         }
 
         // Get user data
