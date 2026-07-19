@@ -308,16 +308,8 @@ app.get('/api/v1/sectors', async (req, res) => {
 
         if (error) return res.status(400).json({ error: error.message });
         
-        // Map to Flutter expected format
-        const mapped = data.map(s => ({
-            sector_code: s.code,
-            name_ar: s.name,
-            name_en: s.name,
-            color_code: s.color_code,
-            icon_name: s.icon_name,
-        }));
-        
-        res.json(mapped);
+        // Return raw data for debugging
+        res.json(data);
     } catch (err) {
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -336,13 +328,7 @@ app.get('/api/v1/sectors/:code', async (req, res) => {
 
         if (error) return res.status(404).json({ error: 'Sector not found' });
         
-        res.json({
-            sector_code: data.code,
-            name_ar: data.name,
-            name_en: data.name,
-            color_code: data.color_code,
-            icon_name: data.icon_name,
-        });
+        res.json(data);
     } catch (err) {
         res.status(500).json({ error: 'Internal server error' });
     }
