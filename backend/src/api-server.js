@@ -15,6 +15,9 @@ app.use(cors());
 app.use(morgan('combined'));
 app.use(express.json());
 
+// Import routes
+const routingRouter = require('./routes/routing');
+
 // ==========================================================
 // SUPABASE CLIENT (Server-Side Only - Service Role Key)
 // ==========================================================
@@ -445,6 +448,11 @@ app.put('/api/v1/user/profile', authenticateToken, async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+
+// ==========================================================
+// ROUTING ENDPOINTS (GraphHopper)
+// ==========================================================
+app.use('/api/v1/routing', authenticateToken, routingRouter);
 
 // ==========================================================
 // HEALTH CHECK

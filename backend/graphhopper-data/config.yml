@@ -1,0 +1,46 @@
+# GraphHopper Configuration for Jordan
+# Optimized for ride-sharing services
+
+# Graph flags - enable car and truck routing
+graph.flag_encoders: car,small_truck,truck
+
+# Prepare contraction hierarchies for faster routing
+prepare.ch.weightings: fastest,shortest
+
+# Default routing algorithm
+routing.default_algorithm: astarbi
+
+# Elevation settings (disable for faster processing)
+graph.elevation.enable: false
+
+# Logging
+graph.verbose: false
+
+# Server settings
+server.port: 8989
+server.host: 0.0.0.0
+
+# Routing limits
+routing.max_visited_nodes: 1000000
+
+# Profile settings for different vehicle types
+profiles:
+  - name: car
+    vehicle: car
+    weighting: fastest
+    
+  - name: car_fastest
+    vehicle: car
+    weighting: fastest
+    
+  - name: car_shortest
+    vehicle: car
+    weighting: shortest
+    
+  - name: small_truck
+    vehicle: small_truck
+    weighting: fastest
+    
+  - name: truck
+    vehicle: truck
+    weighting: fastest
