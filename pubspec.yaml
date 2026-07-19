@@ -29,7 +29,7 @@ dependencies:
   dio: ^5.4.0
   shared_preferences: ^2.2.2
   google_fonts: ^6.1.0
-  geolocator: ^10.1.0
+  geolocator: ^13.0.2
   flutter_map: ^6.1.0
   latlong2: ^0.9.1
   country_picker: ^2.0.27
