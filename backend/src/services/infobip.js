@@ -4,13 +4,15 @@ const INFOBIP_SENDER_ID = process.env.INFOBIP_SENDER_ID || 'RABT';
 
 async function sendSms(to, message) {
     if (!INFOBIP_API_KEY || !INFOBIP_BASE_URL) {
+        console.error('[Infobip] Missing config - API_KEY:', !!INFOBIP_API_KEY, 'BASE_URL:', !!INFOBIP_BASE_URL);
         throw new Error('Infobip configuration missing');
     }
 
-    // Format phone number (remove + prefix for Infobip)
     const formattedPhone = to.startsWith('+') ? to.substring(1) : to;
 
-    const response = await fetch(`${INFOBIP_BASE_URL}/sms/2/text/advanced`, {
+    console.log(`[Infobip] Sending SMS to +${formattedPhone} from "${INFOBIP_SENDER_ID}"`);
+
+    const response = await fetch(`${INFOBIP_BASE_URL}/sms/3/messages`, {
         method: 'POST',
         headers: {
             'Authorization': `App ${INFOBIP_API_KEY}`,
@@ -20,24 +22,28 @@ async function sendSms(to, message) {
         body: JSON.stringify({
             messages: [
                 {
-                    from: INFOBIP_SENDER_ID,
+                    sender: INFOBIP_SENDER_ID,
                     destinations: [{ to: formattedPhone }],
-                    text: message,
+                    content: { text: message },
                 },
             ],
         }),
     });
 
     const data = await response.json();
+    const msgStatus = data.messages?.[0]?.status;
+
+    console.log(`[Infobip] Response: ${response.status} | Status: ${msgStatus?.name} | ID: ${data.messages?.[0]?.messageId}`);
 
     if (!response.ok) {
-        console.error('Infobip error:', data);
-        throw new Error(data.messages?.[0]?.status?.description || 'Failed to send SMS');
+        console.error('[Infobip] Error:', JSON.stringify(data));
+        throw new Error(msgStatus?.description || 'Failed to send SMS');
     }
 
     return {
         success: true,
         messageId: data.messages?.[0]?.messageId,
+        status: msgStatus?.name,
     };
 }
 
