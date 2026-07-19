@@ -67,13 +67,14 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
 
     setState(() => _isFetchingRoute = true);
 
-    final pickup = LatLng(_currentPosition!.latitude, _currentPosition!.longitude);
     // نقطة وسط عمّان كوجهة مؤقتة
     const dropoff = LatLng(31.9539, 35.9106);
 
     final routeData = await _tripService.fetchRouteWithFare(
-      pickup: pickup,
-      dropoff: dropoff,
+      fromLat: _currentPosition!.latitude,
+      fromLng: _currentPosition!.longitude,
+      toLat: dropoff.latitude,
+      toLng: dropoff.longitude,
       sectorCode: widget.sector.code,
     );
 

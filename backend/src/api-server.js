@@ -493,9 +493,10 @@ app.post('/api/v1/debug/otp-check', async (req, res) => {
 });
 
 // ==========================================================
-// ROUTING ENDPOINTS (GraphHopper)
+// ROUTING ENDPOINTS (GraphHopper via middleware)
+// Public - just route calculations, no sensitive data
 // ==========================================================
-app.use('/api/v1/routing', authenticateToken, routingRouter);
+app.use('/api/v1/routing', routingRouter);
 
 // ==========================================================
 // HEALTH CHECK
