@@ -38,7 +38,7 @@ class Sector {
       case 'trucks': return Icons.local_shipping;
       case 'wrecker': return Icons.car_repair;
       case 'heavy': return Icons.agriculture;
-      case 'large': return Icons.boxes;
+      case 'large': return Icons.all_inbox;
       case 'special': return Icons.miscellaneous_services;
       default: return Icons.category;
     }
