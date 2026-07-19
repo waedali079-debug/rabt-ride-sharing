@@ -307,8 +307,6 @@ app.get('/api/v1/sectors', async (req, res) => {
             .select('*');
 
         if (error) return res.status(400).json({ error: error.message });
-        
-        // Return raw data for debugging
         res.json(data);
     } catch (err) {
         res.status(500).json({ error: 'Internal server error' });
@@ -323,11 +321,10 @@ app.get('/api/v1/sectors/:code', async (req, res) => {
         const { data, error } = await supabase
             .from('rabt_sectors')
             .select('*')
-            .eq('code', code)
+            .eq('sector_code', code)
             .single();
 
         if (error) return res.status(404).json({ error: 'Sector not found' });
-        
         res.json(data);
     } catch (err) {
         res.status(500).json({ error: 'Internal server error' });
