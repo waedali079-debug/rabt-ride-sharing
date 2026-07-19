@@ -257,7 +257,7 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
                 phone_number: sanitizedPhone,
                 email: `${sanitizedPhone}@rabt.app`,
                 role: 'customer',
-                national_id_encrypted: '\\x',
+                full_name: '',
             };
             
             const { data: insertedUser, error: dbError } = await supabase
