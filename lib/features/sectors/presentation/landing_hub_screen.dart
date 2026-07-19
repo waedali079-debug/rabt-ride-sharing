@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:rabt_app/features/sectors/data/sector_service.dart';
 import 'package:rabt_app/features/sectors/domain/sector_model.dart';
+import 'package:rabt_app/features/trips/presentation/request_trip_screen.dart';
 
 class LandingHubScreen extends StatefulWidget {
   const LandingHubScreen({Key? key}) : super(key: key);
@@ -139,8 +140,11 @@ class _SectorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تم اختيار: ${sector.nameAr}')),
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RequestTripScreen(sector: sector),
+          ),
         );
       },
       borderRadius: BorderRadius.circular(20.0),
