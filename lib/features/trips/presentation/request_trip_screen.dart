@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -67,7 +68,6 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
 
     setState(() => _isFetchingRoute = true);
 
-    // نقطة وسط عمّان كوجهة مؤقتة
     const dropoff = LatLng(31.9539, 35.9106);
 
     final routeData = await _tripService.fetchRouteWithFare(
@@ -89,7 +89,7 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
       if (_routePoints.isNotEmpty) {
         final bounds = LatLngBounds.fromPoints(_routePoints);
         _mapController.fitCamera(
-          CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(50.0)),
+          CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(80.0)),
         );
       }
     } else {
@@ -133,13 +133,11 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('طلب: ${widget.sector.nameAr}'),
-        backgroundColor: widget.sector.color,
-        foregroundColor: Colors.white,
-      ),
+      backgroundColor: Colors.black,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            )
           : Stack(
               children: [
                 FlutterMap(
@@ -153,7 +151,8 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                      subdomains: const ['a', 'b', 'c'],
                       userAgentPackageName: 'com.rabt.app',
                     ),
                     if (_routePoints.isNotEmpty)
@@ -161,10 +160,10 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
                         polylines: [
                           Polyline(
                             points: _routePoints,
-                            strokeWidth: 5.0,
+                            strokeWidth: 6.0,
                             color: widget.sector.color,
                             borderColor: Colors.white,
-                            borderStrokeWidth: 1.0,
+                            borderStrokeWidth: 2.0,
                           ),
                         ],
                       ),
@@ -175,10 +174,10 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
                             _currentPosition!.latitude,
                             _currentPosition!.longitude,
                           ),
-                          width: 40.0,
-                          height: 40.0,
+                          width: 50.0,
+                          height: 50.0,
                           child: Icon(
-                            Icons.location_on,
+                            Icons.radio_button_checked,
                             color: widget.sector.color,
                             size: 40.0,
                           ),
@@ -186,68 +185,170 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
                         if (_routePoints.isNotEmpty)
                           Marker(
                             point: _routePoints.last,
-                            width: 40.0,
-                            height: 40.0,
-                            child: const Icon(Icons.flag, color: Colors.red, size: 40.0),
+                            width: 50.0,
+                            height: 50.0,
+                            child: const Icon(
+                              Icons.location_on,
+                              color: Colors.red,
+                              size: 40.0,
+                            ),
                           ),
                       ],
                     ),
                   ],
                 ),
                 Positioned(
+                  top: 40,
+                  left: 20,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(25),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white.withOpacity(0.2)),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 40,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white.withOpacity(0.2)),
+                          ),
+                          child: Text(
+                            widget.sector.nameAr,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
                   bottom: 0,
                   left: 0,
                   right: 0,
                   child: Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).scaffoldBackgroundColor,
-                      borderRadius:
-                          const BorderRadius.vertical(top: Radius.circular(20)),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black26, blurRadius: 10),
+                      color: const Color(0xFF1A1A2E).withOpacity(0.95),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 20,
+                          spreadRadius: 2,
+                        ),
                       ],
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[600],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
                         if (_isFetchingRoute)
                           const Padding(
                             padding: EdgeInsets.only(bottom: 16.0),
-                            child: LinearProgressIndicator(),
+                            child: LinearProgressIndicator(
+                              backgroundColor: Colors.white12,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
                           ),
                         if (_routeInfo != null) ...[
-                          Text(
-                            '${_routeInfo!['distanceKm']} كم',
-                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'الوقت المقدر: ${_routeInfo!['durationMinutes']} دقيقة',
-                            style: Theme.of(context).textTheme.bodyMedium,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _buildInfoCard(
+                                'المسافة',
+                                '${_routeInfo!['distanceKm']} كم',
+                              ),
+                              _buildInfoCard(
+                                'الوقت المقدر',
+                                '${_routeInfo!['durationMinutes']} دقيقة',
+                              ),
+                            ],
                           ),
                           if (_routeInfo!['fare'] != null) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              'التكلفة المقدرة: ${_routeInfo!['fare']['amount']} ${_routeInfo!['fare']['currency']}',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    color: widget.sector.color,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _buildInfoCard(
+                                  'التكلفة المقدرة',
+                                  '${_routeInfo!['fare']['amount']} ${_routeInfo!['fare']['currency']}',
+                                  isHighlighted: true,
+                                ),
+                                _buildInfoCard(
+                                  'الخدمة',
+                                  widget.sector.nameAr,
+                                ),
+                              ],
                             ),
                           ],
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 24),
                         ],
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: widget.sector.color,
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: widget.sector.color,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 4,
+                            ),
+                            onPressed: _isRequesting ? null : _requestRide,
+                            child: _isRequesting
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2.5,
+                                    ),
+                                  )
+                                : const Text(
+                                    'تأكيد وطلب الخدمة',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
                           ),
-                          onPressed: _isRequesting ? null : _requestRide,
-                          child: _isRequesting
-                              ? const CircularProgressIndicator(color: Colors.white)
-                              : const Text('تأكيد وطلب الخدمة'),
                         ),
                       ],
                     ),
@@ -255,6 +356,27 @@ class _RequestTripScreenState extends State<RequestTripScreen> {
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _buildInfoCard(String title, String value, {bool isHighlighted = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(color: Colors.grey[500], fontSize: 12),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: isHighlighted ? widget.sector.color : Colors.white,
+          ),
+        ),
+      ],
     );
   }
 }
