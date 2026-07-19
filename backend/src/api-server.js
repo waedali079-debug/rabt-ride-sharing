@@ -87,6 +87,8 @@ async function sendSmsViaInfobip(phone, message) {
 
     const formattedPhone = phone.startsWith('+') ? phone.substring(1) : phone;
 
+    console.log(`[Infobip] Sending SMS to: ${formattedPhone}, from: ${INFOBIP_SENDER_ID}`);
+
     const response = await fetch(`${INFOBIP_BASE_URL}/sms/2/text/advanced`, {
         method: 'POST',
         headers: {
@@ -105,8 +107,10 @@ async function sendSmsViaInfobip(phone, message) {
 
     const data = await response.json();
     
+    console.log(`[Infobip] Response status: ${response.status}, messageId: ${data.messages?.[0]?.messageId}, status: ${data.messages?.[0]?.status?.statusName}`);
+
     if (!response.ok) {
-        console.error('Infobip error:', data);
+        console.error('[Infobip] Error:', JSON.stringify(data));
         throw new Error(data.messages?.[0]?.status?.description || 'Failed to send SMS');
     }
 
@@ -213,6 +217,20 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
     const sanitizedPhone = sanitizePhone(phone);
 
     try {
+        // Rate limiting: max 5 verify attempts per phone per 10 minutes
+        const { count: verifyCount } = await supabase
+            .from('rabt_otps')
+            .select('*', { count: 'exact', head: true })
+            .eq('phone_number', sanitizedPhone)
+            .eq('purpose', 'login')
+            .gte('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString());
+
+        if (verifyCount >= 5) {
+            return res.status(429).json({ 
+                error: 'Too many verification attempts. Please request a new OTP.' 
+            });
+        }
+
         // Find valid OTP
         const { data: otpRecord, error: findError } = await supabase
             .from('rabt_otps')
@@ -461,35 +479,6 @@ app.put('/api/v1/user/profile', authenticateToken, async (req, res) => {
     } catch (err) {
         res.status(500).json({ error: 'Internal server error' });
     }
-});
-
-// ==========================================================
-// DEBUG ENDPOINTS (REMOVE IN PRODUCTION)
-// ==========================================================
-app.post('/api/v1/debug/otp-check', async (req, res) => {
-    const { phone } = req.body;
-    const sanitizedPhone = sanitizePhone(phone || '');
-    
-    const { data: otps, error: otpErr } = await supabase
-        .from('rabt_otps')
-        .select('*')
-        .eq('phone_number', sanitizedPhone)
-        .order('created_at', { ascending: false })
-        .limit(5);
-    
-    const { data: users, error: userErr } = await supabase
-        .from('rabt_users')
-        .select('*')
-        .eq('phone_number', sanitizedPhone);
-    
-    res.json({
-        phone_queried: sanitizedPhone,
-        now: new Date().toISOString(),
-        otps: otps || [],
-        users: users || [],
-        otp_error: otpErr?.message || null,
-        user_error: userErr?.message || null,
-    });
 });
 
 // ==========================================================
