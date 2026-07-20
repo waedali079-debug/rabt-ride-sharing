@@ -7,6 +7,8 @@ COPY graphhopper-data/config.yml /graphhopper/config-example.yml
 RUN wget -q -O /graphhopper/jordan-latest.osm.pbf \
     https://download.geofabrik.de/asia/jordan-latest.osm.pbf
 
+RUN java -jar graphhopper.jar -c /graphhopper/config-example.yml -i /graphhopper/jordan-latest.osm.pbf
+
 EXPOSE 8989
 
-CMD ["sh", "-c", "java $JAVA_OPTS -jar graphhopper.jar -c /graphhopper/config-example.yml -i /graphhopper/jordan-latest.osm.pbf"]
+CMD ["sh", "-c", "java $JAVA_OPTS -jar graphhopper.jar -c /graphhopper/config-example.yml"]
