@@ -111,7 +111,40 @@ router.post('/:tripId/accept', authenticateUser, requireRole('driver'), async (r
     const driverId = req.user.id;
 
     try {
-        // Atomic update: only succeeds if trip is still 'pending'
+        // 1. Fetch trip data (verify sector and pickup location)
+        const { data: trip, error: tripError } = await supabase
+            .from('rabt_trips')
+            .select('sector_id, pickup_location, status')
+            .eq('id', tripId)
+            .single();
+
+        if (tripError || !trip) {
+            return res.status(404).json({ error: 'Trip not found' });
+        }
+
+        if (trip.status !== 'pending') {
+            return res.status(409).json({ error: 'Trip is no longer available.' });
+        }
+
+        // 2. Verify driver is the nearest matching driver via PostGIS RPC
+        const { data: matchedDriverId, error: matchError } = await supabase
+            .rpc('match_nearest_driver', {
+                p_pickup: trip.pickup_location,
+                p_sector_id: trip.sector_id
+            });
+
+        if (matchError) {
+            console.error('[Trips] match_nearest_driver error:', matchError);
+            return res.status(500).json({ error: 'Failed to verify driver match' });
+        }
+
+        if (!matchedDriverId || matchedDriverId !== driverId) {
+            return res.status(403).json({
+                error: 'Forbidden: You are not the nearest matching driver for this sector.'
+            });
+        }
+
+        // 3. Atomic update: only succeeds if trip is still 'pending'
         const { data: updatedTrip, error } = await supabase
             .from('rabt_trips')
             .update({

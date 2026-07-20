@@ -15,7 +15,11 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.TRACKING_PORT || 8080;
-const JWT_SECRET = process.env.JWT_SECRET || 'rabt_super_secret_v31';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('FATAL ERROR: JWT_SECRET is missing in environment variables.');
+    process.exit(1);
+}
 
 // ==========================================================
 // MIDDLEWARE: AUTHENTICATION

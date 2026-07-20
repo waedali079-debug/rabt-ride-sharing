@@ -1,7 +1,11 @@
 const supabase = require('../db');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rabt_jwt_secret_v31_production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('FATAL ERROR: JWT_SECRET is missing in environment variables.');
+    process.exit(1);
+}
 
 // Verify our custom JWT (NOT Supabase token) - ensures role comes from DB
 async function authenticateUser(req, res, next) {

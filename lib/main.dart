@@ -31,9 +31,7 @@ class RabtApp extends StatelessWidget {
       theme: _buildRabtTheme(Brightness.light),
       darkTheme: _buildRabtTheme(Brightness.dark),
       themeMode: ThemeMode.system,
-      home: authService.isAuthenticated
-          ? const LandingHubScreen()
-          : const WelcomeScreen(),
+      home: _buildHomeScreen(authService),
     );
   }
 
@@ -100,6 +98,22 @@ class RabtApp extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildHomeScreen(AuthService authService) {
+    if (!authService.isAuthenticated) {
+      return const WelcomeScreen();
+    }
+
+    final role = authService.currentUser?['role'] ?? 'customer';
+
+    if (role == 'driver') {
+      return const DriverDashboardScreen();
+    } else if (role == 'admin' || role == 'super_admin') {
+      return const AdminPlaceholderScreen();
+    } else {
+      return const LandingHubScreen();
+    }
+  }
 }
 
 class WelcomeScreen extends StatelessWidget {
@@ -158,6 +172,50 @@ class WelcomeScreen extends StatelessWidget {
               const Spacer(flex: 1),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class DriverDashboardScreen extends StatelessWidget {
+  const DriverDashboardScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('لوحة السائق')),
+      body: const Center(
+        child: Text('قريباً: لوحة تحكم السائق'),
+      ),
+    );
+  }
+}
+
+class AdminPlaceholderScreen extends StatelessWidget {
+  const AdminPlaceholderScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('لوحة تحكم المسؤول')),
+      body: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.admin_panel_settings, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'SCR-401: قيد التطوير',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'لا يمكن للأدمن طلب رحلات من هنا.\nلوحة التحكم الإدارية قيد الإعداد.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
         ),
       ),
     );

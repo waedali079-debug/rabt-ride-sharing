@@ -35,7 +35,11 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 // ==========================================================
 // JWT CONFIGURATION
 // ==========================================================
-const JWT_SECRET = process.env.JWT_SECRET || 'rabt_jwt_secret_v31_production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('FATAL ERROR: JWT_SECRET is missing in environment variables.');
+    process.exit(1);
+}
 const JWT_EXPIRES_IN = '7d';
 
 // ==========================================================

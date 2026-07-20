@@ -1,8 +1,16 @@
 const crypto = require('crypto');
 
 const ALGORITHM = 'aes-256-gcm';
-const KEY = Buffer.from(process.env.ENCRYPTION_KEY || '0000000000000000000000000000000000000000000000000000000000000000', 'hex');
 const IV_LENGTH = 16;
+
+const ENCRYPTION_SECRET = process.env.ENCRYPTION_SECRET || process.env.ENCRYPTION_KEY;
+if (!ENCRYPTION_SECRET) {
+    console.error('FATAL ERROR: ENCRYPTION_SECRET (or ENCRYPTION_KEY) is missing in environment variables.');
+    process.exit(1);
+}
+
+const SALT = process.env.ENCRYPTION_SALT || 'rabt-salt-v1';
+const KEY = crypto.scryptSync(ENCRYPTION_SECRET, SALT, 32);
 
 function encrypt(text) {
     const iv = crypto.randomBytes(IV_LENGTH);
