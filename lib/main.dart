@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:rabt/core/services/auth_service.dart';
 import 'package:rabt/features/auth/presentation/phone_input_screen.dart';
 import 'package:rabt/features/sectors/presentation/landing_hub_screen.dart';
+import 'package:rabt/features/driver/presentation/driver_dashboard_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -173,20 +174,6 @@ class WelcomeScreen extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class DriverDashboardScreen extends StatelessWidget {
-  const DriverDashboardScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('لوحة السائق')),
-      body: const Center(
-        child: Text('قريباً: لوحة تحكم السائق'),
       ),
     );
   }

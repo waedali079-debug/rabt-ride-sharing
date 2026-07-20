@@ -13,6 +13,7 @@ class ApiConfig {
   static const String tripRoute = '/v1/routing/trip-route';
   static const String trips = '/v1/trips';
   static const String requestTrip = '/v1/trips/request';
+  static const String dispatch = '/v1/trips/dispatch';
 
   // Payments
   static const String payments = '/v1/payments';

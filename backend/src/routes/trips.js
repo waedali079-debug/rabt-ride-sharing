@@ -24,6 +24,56 @@ async function calculateFare(sectorId, distanceKm) {
 }
 
 // ──────────────────────────────────────────────
+// Driver dispatch poll — called every 3 seconds
+// ──────────────────────────────────────────────
+router.get('/dispatch', authenticateUser, requireRole('driver'), async (req, res) => {
+    const driverId = req.user.id;
+
+    try {
+        // 1. Trip assigned directly to this driver and awaiting acceptance
+        const { data: assignedTrip } = await supabase
+            .from('rabt_trips')
+            .select('id, sector_id, pickup_location, fare, distance_km, customer_id')
+            .eq('driver_id', driverId)
+            .eq('status', 'pending')
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+        if (assignedTrip) {
+            return res.json({ has_trip: true, trip: assignedTrip });
+        }
+
+        // 2. Broadcast: any unassigned pending trip matching driver sector
+        const { data: driverProfile } = await supabase
+            .from('rabt_driver_profiles')
+            .select('sector_id')
+            .eq('account_id', driverId)
+            .single();
+
+        if (driverProfile?.sector_id) {
+            const { data: broadcastTrip } = await supabase
+                .from('rabt_trips')
+                .select('id, sector_id, pickup_location, fare, distance_km, customer_id')
+                .is('driver_id', null)
+                .eq('status', 'pending')
+                .eq('sector_id', driverProfile.sector_id)
+                .order('created_at', { ascending: true })
+                .limit(1)
+                .maybeSingle();
+
+            if (broadcastTrip) {
+                return res.json({ has_trip: true, trip: broadcastTrip });
+            }
+        }
+
+        res.json({ has_trip: false });
+    } catch (err) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ──────────────────────────────────────────────
 // List user's trips
 // ──────────────────────────────────────────────
 router.get('/', authenticateUser, async (req, res) => {
