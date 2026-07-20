@@ -1,10 +1,11 @@
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+// Use service_role key for backend operations (bypasses RLS)
+const supabaseKey = process.env.SUPABASE_SECRET_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-    console.error('Missing SUPABASE_URL or SUPABASE_ANON_KEY');
+    console.error('Missing SUPABASE_URL or SUPABASE_SECRET_KEY');
     process.exit(1);
 }
 

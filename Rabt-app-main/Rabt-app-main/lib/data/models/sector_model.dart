@@ -20,12 +20,17 @@ class SectorModel {
   });
 
   factory SectorModel.fromJson(Map<String, dynamic> json) {
+    // Support both Backend API format (name_ar/sector_code) and legacy format (name/sector_id)
+    final name = json['name_ar'] as String? ?? json['name'] as String? ?? '';
+    final sectorId = json['sector_code'] as String? ?? json['sector_id'] as String? ?? '';
+    final isActive = json['is_operational'] as bool? ?? json['is_active'] as bool? ?? true;
+    
     return SectorModel(
-      id: json['id'] as int,
-      sectorId: json['sector_id'] as String,
-      name: json['name'] as String,
-      description: json['description'] as String? ?? '',
-      isActive: json['is_active'] as bool? ?? true,
+      id: json['id'] as int? ?? 0,
+      sectorId: sectorId,
+      name: name,
+      description: json['name_en'] as String? ?? json['description'] as String? ?? '',
+      isActive: isActive,
       searchRadiusM: (json['search_radius_m'] as num?)?.toDouble() ?? 10000,
     );
   }
@@ -33,10 +38,10 @@ class SectorModel {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'sector_id': sectorId,
-      'name': name,
-      'description': description,
-      'is_active': isActive,
+      'sector_code': sectorId,
+      'name_ar': name,
+      'name_en': description,
+      'is_operational': isActive,
       'search_radius_m': searchRadiusM,
     };
   }

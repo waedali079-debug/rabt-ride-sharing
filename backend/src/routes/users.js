@@ -1,71 +1,10 @@
 const express = require('express');
 const supabase = require('../db');
-const { encrypt } = require('../encryption');
 const { authenticateUser, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.post('/register', async (req, res) => {
-    const { phone, email, full_name, national_id, role = 'customer' } = req.body;
-
-    if (!phone || !national_id || !full_name) {
-        return res.status(400).json({ error: 'Phone, full_name, and national_id are required' });
-    }
-
-    try {
-        const nationalIdEncrypted = encrypt(national_id);
-
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-            email,
-            phone,
-            password: national_id.slice(-6),
-            options: { data: { role, full_name } },
-        });
-
-        if (authError) return res.status(400).json({ error: authError.message });
-
-        const userId = authData.user.id;
-
-        const { error: dbError } = await supabase
-            .from('rabt_users')
-            .insert({
-                id: userId,
-                phone_number: phone,
-                full_name,
-                email,
-                role,
-                national_id_encrypted: Buffer.from(nationalIdEncrypted),
-            });
-
-        if (dbError) return res.status(500).json({ error: dbError.message });
-
-        res.status(201).json({
-            message: 'User registered successfully',
-            user_id: userId,
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-router.post('/login', async (req, res) => {
-    const { phone, password } = req.body;
-
-    if (!phone) {
-        return res.status(400).json({ error: 'Phone is required' });
-    }
-
-    try {
-        const { data, error } = await supabase.auth.signInWithOtp({ phone });
-
-        if (error) return res.status(400).json({ error: error.message });
-
-        res.json({ message: 'OTP sent to your phone' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
+// Get current user profile
 router.get('/profile', authenticateUser, async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -76,7 +15,15 @@ router.get('/profile', authenticateUser, async (req, res) => {
 
         if (error) return res.status(500).json({ error: error.message });
 
-        res.json(data);
+        res.json({
+            data: {
+                id: data.id,
+                phone_number: data.phone_number,
+                full_name: data.full_name,
+                email: data.email,
+                role: data.role,
+            },
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

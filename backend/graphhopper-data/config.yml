@@ -1,0 +1,42 @@
+graphhopper:
+  datareader.file: jordan-latest.osm.pbf
+  graph.location: graph-cache
+
+  profiles:
+    - name: car
+      custom_model_files: [car.json]
+    - name: small_truck
+      custom_model_files: [truck.json]
+    - name: truck
+      custom_model_files: [truck.json]
+
+  profiles_ch:
+    - profile: car
+    - profile: small_truck
+    - profile: truck
+
+  graph.encoded_values: |
+    car_access, car_average_speed, country, road_class, roundabout, max_speed, road_environment,
+    ferry_speed, hgv, road_access, max_width, max_height, max_weight, max_weight_except
+
+  prepare.min_network_size: 200
+  prepare.subnetworks.threads: 1
+  graph.dataaccess.default_type: RAM_STORE
+  import.osm.ignored_highways: ''
+
+server:
+  application_connectors:
+  - type: http
+    port: 8989
+    max_request_header_size: 50k
+  request_log:
+      appenders: []
+  admin_connectors:
+  - type: http
+    port: 8990
+
+logging:
+  appenders:
+    - type: console
+      time_zone: UTC
+      log_format: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

@@ -1,15 +1,33 @@
 services:
   - type: web
-    name: rabt-backend
+    name: rabt-graphhopper
+    env: docker
+    dockerfilePath: ./Dockerfile.graphhopper
+    envVars:
+      - key: JAVA_OPTS
+        value: "-Xmx2G -Xms1G"
+
+  - type: web
+    name: rabt-api
     env: node
     buildCommand: cd backend && npm install
     startCommand: cd backend && npm start
     envVars:
       - key: PORT
         value: 8080
+      - key: NODE_ENV
+        value: production
       - key: SUPABASE_URL
         sync: false
-      - key: SUPABASE_ANON_KEY
+      - key: SUPABASE_SECRET_KEY
         sync: false
-      - key: ENCRYPTION_KEY
+      - key: JWT_SECRET
+        generateValue: true
+      - key: INFOBIP_API_KEY
         sync: false
+      - key: INFOBIP_BASE_URL
+        sync: false
+      - key: INFOBIP_SENDER_ID
+        sync: false
+      - key: GRAPHHOPPER_URL
+        value: "https://rabt-graphhopper.onrender.com"

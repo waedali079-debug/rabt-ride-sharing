@@ -6,12 +6,14 @@ npm-debug.log*
 .env
 .env.local
 .env.*.local
+.session.env
 
 # Build output
 backend/dist/
 backend/build/
 mobile/build/
 mobile/.dart_tool/
+build/
 
 # IDE
 .idea/
@@ -43,6 +45,11 @@ mobile/android/app/debug/
 mobile/android/app/profile/
 mobile/android/app/release/
 
+# Signing
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
+
 # iOS
 mobile/ios/Pods/
 mobile/ios/.symlinks/
@@ -51,3 +58,4 @@ mobile/ios/Flutter/Flutter.podspec
 
 # Supabase
 backend/.env
+api_keys.env

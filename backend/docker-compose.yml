@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  graphhopper:
+    image: israelhikingmap/graphhopper:latest
+    container_name: rabt_graphhopper_jo
+    ports:
+      - "8989:8989"
+    volumes:
+      - ./graphhopper-data/jordan-latest.osm.pbf:/graphhopper/jordan-latest.osm.pbf
+      - ./graphhopper-data/config.yml:/graphhopper/config-example.yml
+      - ./graphhopper-data/graph-cache:/graphhopper/graph-cache
+    environment:
+      - JAVA_OPTS=-Xmx2G -Xms1G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8989/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s

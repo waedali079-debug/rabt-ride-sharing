@@ -8,6 +8,7 @@ const usersRouter = require('./routes/users');
 const tripsRouter = require('./routes/trips');
 const paymentsRouter = require('./routes/payments');
 const sectorsRouter = require('./routes/sectors');
+const otpRouter = require('./routes/otp');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -18,9 +19,12 @@ app.use(morgan('combined'));
 app.use(express.json());
 
 app.use('/api/v1/users', usersRouter);
+app.use('/api/v1/auth', usersRouter);
+app.use('/api/v1/profile', usersRouter);
 app.use('/api/v1/trips', tripsRouter);
 app.use('/api/v1/payments', paymentsRouter);
 app.use('/api/v1/sectors', sectorsRouter);
+app.use('/api/v1/otp', otpRouter);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', timestamp: new Date().toISOString() });

@@ -12,17 +12,20 @@ class SectorRepositoryImpl implements SectorRepository {
 
   @override
   Future<List<SectorEntity>> getSectors() async {
-    final response = await _client.get(
-      Uri.parse('${ApiConfig.baseUrl}/api/v1/sector/list'),
-      headers: {'Content-Type': 'application/json'},
-    );
+    try {
+      final response = await _client.get(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.sectors}'),
+        headers: {'Content-Type': 'application/json'},
+      );
 
-    if (response.statusCode == 200) {
-      final json = jsonDecode(response.body);
-      final List<dynamic> sectors = json['data'] as List<dynamic>;
-      return sectors
-          .map((s) => SectorModel.fromJson(s as Map<String, dynamic>).toEntity())
-          .toList();
+      if (response.statusCode == 200) {
+        final List<dynamic> sectors = jsonDecode(response.body) as List<dynamic>;
+        return sectors
+            .map((s) => SectorModel.fromJson(s as Map<String, dynamic>).toEntity())
+            .toList();
+      }
+    } catch (e) {
+      print('API Error: $e');
     }
     // Fallback to static sectors if API not available
     return _getStaticSectors();

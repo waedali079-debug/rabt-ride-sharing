@@ -1,352 +1,191 @@
--- ====================================================================
--- SYSTEM: Rabt Multi-Reality Enterprise Database Schema (REFACTORED)
--- PATCH VERSION: 1.0.2 (The "Real" Production-Ready Patch)
--- Fixes: Geography Index Bypass, RLS Dispatch Deadlock, Audit Restore
--- SECURITY LAYER: Triple-Layer Armor (UUIDv4, Check Constraints, RLS)
--- PERFORMANCE LAYER: GiST Geography Indexing & Composite B-Trees
--- ====================================================================
+-- ==========================================================
+-- RABT SYSTEM: UNIFIED DATABASE SCHEMA (HYBRID V31)
+-- Engine: PostgreSQL 15+ with PostGIS, pgcrypto
+-- ==========================================================
 
--- 1. تفعيل الامتدادات الأمنية والجغرافية الحيوية
+-- 1. Extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "postgis";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- 2. إنشاء الأنواع المخصصة المحمية (Custom Enums)
--- ملاحظة: تم التخلص من rabt_sector_code لصالح VARCHAR ديناميكي
-DO $$ BEGIN
-    CREATE TYPE rabt_user_role AS ENUM ('customer', 'driver', 'admin', 'super_admin');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+-- 2. Custom Enums
+CREATE TYPE user_role AS ENUM ('customer', 'driver', 'admin');
+CREATE TYPE trip_status AS ENUM ('pending', 'accepted', 'arrived', 'in_progress', 'completed', 'cancelled');
+CREATE TYPE payment_method AS ENUM ('cash', 'card', 'wallet');
+CREATE TYPE payment_status AS ENUM ('pending', 'success', 'failed');
+CREATE TYPE dispute_status AS ENUM ('open', 'investigating', 'resolved', 'rejected');
 
-DO $$ BEGIN
-    CREATE TYPE rabt_trip_status AS ENUM ('requested', 'searching', 'accepted', 'arrived', 'active', 'completed', 'canceled');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+-- 3. Sectors Table
+CREATE TABLE rabt_sectors (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code VARCHAR(10) UNIQUE NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    color_code VARCHAR(7) NOT NULL,
+    icon_name VARCHAR(50) NOT NULL,
+    base_fare DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    per_km_rate DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-DO $$ BEGIN
-    CREATE TYPE rabt_tree_stage AS ENUM ('seedling', 'young', 'mature', 'ancient', 'legendary');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+-- 4. Users Table (With Encryption)
+CREATE TABLE rabt_users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    phone_number VARCHAR(20) UNIQUE NOT NULL,
+    role user_role NOT NULL,
+    full_name VARCHAR(100),
+    national_id_encrypted BYTEA,
+    is_active BOOLEAN DEFAULT TRUE,
+    sector_id UUID REFERENCES rabt_sectors(id) ON DELETE SET NULL,
+    current_location GEOMETRY(Point, 4326),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_users_location ON rabt_users USING GIST (current_location);
+CREATE INDEX idx_users_phone ON rabt_users(phone_number);
 
-DO $$ BEGIN
-    CREATE TYPE rabt_season AS ENUM ('spring', 'summer', 'autumn', 'winter');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+-- 5. Driver Profiles & Locations (Retained for Aggregator Logic)
+CREATE TABLE rabt_driver_profiles (
+    driver_id UUID PRIMARY KEY REFERENCES rabt_users(id) ON DELETE CASCADE,
+    vehicle_plate VARCHAR(20) UNIQUE NOT NULL,
+    vehicle_model VARCHAR(50),
+    is_online BOOLEAN DEFAULT FALSE,
+    is_available BOOLEAN DEFAULT FALSE,
+    rating DECIMAL(2,1) DEFAULT 5.0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-DO $$ BEGIN
-    CREATE TYPE rabt_payment_status AS ENUM ('pending', 'escrowed', 'released', 'refunded', 'failed');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+CREATE TABLE rabt_driver_locations (
+    driver_id UUID PRIMARY KEY REFERENCES rabt_users(id) ON DELETE CASCADE,
+    location GEOMETRY(Point, 4326) NOT NULL,
+    heading DECIMAL(4,1),
+    speed_kmh DECIMAL(5,1),
+    last_updated TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_driver_loc_point ON rabt_driver_locations USING GIST (location);
 
--- ====================================================================
--- 3. الدوال المساعدة (All hardened with SECURITY DEFINER + search_path)
--- ====================================================================
+-- 6. Trips Table (With Double-Booking Prevention)
+CREATE TABLE rabt_trips (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    customer_id UUID NOT NULL REFERENCES rabt_users(id) ON DELETE CASCADE,
+    driver_id UUID REFERENCES rabt_users(id) ON DELETE SET NULL,
+    sector_id UUID NOT NULL REFERENCES rabt_sectors(id) ON DELETE RESTRICT,
+    status trip_status DEFAULT 'pending',
+    pickup_location GEOMETRY(Point, 4326) NOT NULL,
+    dropoff_location GEOMETRY(Point, 4326),
+    fare DECIMAL(10, 2),
+    distance_km DECIMAL(10, 2),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    accepted_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ
+);
+CREATE INDEX idx_trips_customer ON rabt_trips(customer_id);
+CREATE INDEX idx_trips_driver ON rabt_trips(driver_id);
+-- CRITICAL: Prevents a driver from having two active trips simultaneously
+CREATE UNIQUE INDEX idx_driver_active_trip ON rabt_trips(driver_id) 
+WHERE status IN ('accepted', 'arrived', 'in_progress');
 
-CREATE OR REPLACE FUNCTION update_rabt_timestamp()
+-- 7. Payments Table
+CREATE TABLE rabt_payments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    trip_id UUID NOT NULL REFERENCES rabt_trips(id) ON DELETE CASCADE,
+    amount DECIMAL(10, 2) NOT NULL,
+    method payment_method NOT NULL,
+    status payment_status DEFAULT 'pending',
+    transaction_ref VARCHAR(100),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. Advanced User Trees (Gamification)
+CREATE TABLE rabt_user_trees (
+    user_id UUID PRIMARY KEY REFERENCES rabt_users(id) ON DELETE CASCADE,
+    completed_trips INT DEFAULT 0,
+    stage INT DEFAULT 0, -- 0:Seedling, 1:Young, 2:Mature, 3:Ancient, 4:Legendary
+    season VARCHAR(20) DEFAULT 'spring',
+    has_halo BOOLEAN DEFAULT FALSE,
+    last_updated TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 9. Audit Logs (With Automation Triggers)
+CREATE TABLE rabt_audit_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES rabt_users(id) ON DELETE SET NULL,
+    action VARCHAR(50) NOT NULL,
+    entity_type VARCHAR(50),
+    entity_id UUID,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_audit_user ON rabt_audit_logs(user_id);
+
+-- 10. Disputes Table (New Addition)
+CREATE TABLE rabt_disputes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    trip_id UUID NOT NULL REFERENCES rabt_trips(id) ON DELETE CASCADE,
+    reported_by UUID NOT NULL REFERENCES rabt_users(id) ON DELETE CASCADE,
+    reason TEXT NOT NULL,
+    status dispute_status DEFAULT 'open',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 11. OTPs Table (For Infobip SMS Verification)
+CREATE TABLE rabt_otps (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    phone_number VARCHAR(20) NOT NULL,
+    otp_code VARCHAR(6) NOT NULL,
+    purpose VARCHAR(20) NOT NULL DEFAULT 'login', -- login, register, reset
+    is_used BOOLEAN DEFAULT FALSE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_otps_phone ON rabt_otps(phone_number);
+CREATE INDEX idx_otps_expires ON rabt_otps(expires_at);
+
+-- Function to cleanup expired OTPs
+CREATE OR REPLACE FUNCTION cleanup_expired_otps()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = CLOCK_TIMESTAMP();
+    DELETE FROM rabt_otps WHERE expires_at < NOW() - INTERVAL '1 hour';
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- دالة مساعدة لاستخلاص المعرّف الآمن للمستخدم الحالي من الـ Context
-CREATE OR REPLACE FUNCTION get_rabt_context_user() RETURNS UUID AS $$
-BEGIN
-    RETURN NULLIF(current_setting('app.current_user_id', true), '')::UUID;
-EXCEPTION WHEN OTHERS THEN
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+-- ==========================================================
+-- FUNCTIONS & TRIGGERS
+-- ==========================================================
 
--- ====================================================================
--- 4. جدول القطاعات الديناميكي (VARCHAR بدل ENUM لمرونة الإضافة)
--- ====================================================================
-CREATE TABLE rabt_sectors (
-    sector_code VARCHAR(10) PRIMARY KEY,
-    name_ar VARCHAR(50) NOT NULL UNIQUE,
-    name_en VARCHAR(50) NOT NULL UNIQUE,
-    base_fare NUMERIC(10, 2) NOT NULL,
-    per_km_rate NUMERIC(10, 2) NOT NULL,
-    per_minute_rate NUMERIC(10, 2) NOT NULL,
-    is_operational BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CLOCK_TIMESTAMP(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CLOCK_TIMESTAMP(),
-    CONSTRAINT chk_base_fare CHECK (base_fare >= 0.00),
-    CONSTRAINT chk_km_rate CHECK (per_km_rate >= 0.00),
-    CONSTRAINT chk_min_rate CHECK (per_minute_rate >= 0.00)
-);
-
--- ====================================================================
--- 5. جدول المستخدمين (مع تشفير pgcrypto)
--- ====================================================================
-CREATE TABLE rabt_users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    phone_number VARCHAR(20) UNIQUE NOT NULL,
-    full_name VARCHAR(100) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    role rabt_user_role NOT NULL DEFAULT 'customer',
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    is_verified BOOLEAN NOT NULL DEFAULT FALSE,
-    national_id_encrypted BYTEA NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CLOCK_TIMESTAMP(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CLOCK_TIMESTAMP(),
-    CONSTRAINT chk_phone_format CHECK (phone_number ~ '^\+?[1-9]\d{1,14}$')
-);
-
-CREATE TRIGGER trg_update_rabt_users BEFORE UPDATE ON rabt_users 
-FOR EACH ROW EXECUTE FUNCTION update_rabt_timestamp();
-
--- ====================================================================
--- 6. ملفات السائقين
--- ====================================================================
-CREATE TABLE rabt_driver_profiles (
-    user_id UUID PRIMARY KEY REFERENCES rabt_users(id) ON DELETE RESTRICT,
-    assigned_sector VARCHAR(10) NOT NULL REFERENCES rabt_sectors(sector_code),
-    vehicle_plate_number VARCHAR(20) NOT NULL UNIQUE,
-    vehicle_model VARCHAR(50) NOT NULL,
-    is_available BOOLEAN NOT NULL DEFAULT FALSE,
-    current_speed_kmh NUMERIC(5,2) NOT NULL DEFAULT 0.00,
-    rating_average NUMERIC(3,2) NOT NULL DEFAULT 5.00,
-    total_trips_completed INT NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CLOCK_TIMESTAMP(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CLOCK_TIMESTAMP(),
-    CONSTRAINT chk_driver_speed CHECK (current_speed_kmh >= 0.00),
-    CONSTRAINT chk_driver_rating CHECK (rating_average BETWEEN 1.00 AND 5.00),
-    CONSTRAINT chk_driver_trips CHECK (total_trips_completed >= 0)
-);
-
-CREATE TRIGGER trg_update_rabt_driver_profiles BEFORE UPDATE ON rabt_driver_profiles 
-FOR EACH ROW EXECUTE FUNCTION update_rabt_timestamp();
-
--- ====================================================================
--- 7. محرك التتبع الحي (GEOGRAPHY — NOT geometry)
--- ====================================================================
-CREATE TABLE rabt_driver_locations (
-    driver_id UUID PRIMARY KEY REFERENCES rabt_driver_profiles(user_id) ON DELETE CASCADE,
-    live_coordinates GEOGRAPHY(Point, 4326) NOT NULL,
-    last_ping_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CLOCK_TIMESTAMP()
-);
-
--- فهرس GiST على GEOGRAPHY (لا يحتاج Cast في الاستعلامات)
-CREATE INDEX idx_rabt_driver_spatial_geo ON rabt_driver_locations USING GIST (live_coordinates);
-
--- ====================================================================
--- 8. جدول الرحلات (مع Double-Booking Prevention)
--- ====================================================================
-CREATE TABLE rabt_trips (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    customer_id UUID NOT NULL REFERENCES rabt_users(id) ON DELETE RESTRICT,
-    driver_id UUID REFERENCES rabt_driver_profiles(user_id) ON DELETE RESTRICT,
-    sector_code VARCHAR(10) NOT NULL REFERENCES rabt_sectors(sector_code),
-    status rabt_trip_status NOT NULL DEFAULT 'requested',
-    pickup_location GEOMETRY(Point, 4326) NOT NULL,
-    dropoff_location GEOMETRY(Point, 4326) NOT NULL,
-    estimated_price NUMERIC(10, 2) NOT NULL,
-    final_price NUMERIC(10, 2),
-    estimated_duration_minutes INT NOT NULL,
-    actual_duration_minutes INT,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CLOCK_TIMESTAMP(),
-    accepted_at TIMESTAMP WITH TIME ZONE,
-    started_at TIMESTAMP WITH TIME ZONE,
-    ended_at TIMESTAMP WITH TIME ZONE,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CLOCK_TIMESTAMP(),
-    CONSTRAINT chk_est_price CHECK (estimated_price > 0.00),
-    CONSTRAINT chk_fin_price CHECK (final_price >= 0.00),
-    CONSTRAINT chk_est_duration CHECK (estimated_duration_minutes > 0)
-);
-
-CREATE TRIGGER trg_update_rabt_trips BEFORE UPDATE ON rabt_trips 
-FOR EACH ROW EXECUTE FUNCTION update_rabt_timestamp();
-
--- فهرس فريد جزئي يمنع السائق من الارتباط بأكثر من رحلة نشطة في نفس الوقت
-CREATE UNIQUE INDEX idx_prevent_driver_double_booking 
-ON rabt_trips (driver_id) 
-WHERE status IN ('accepted', 'arrived', 'active');
-
-CREATE INDEX idx_trips_customer ON rabt_trips(customer_id);
-CREATE INDEX idx_trips_status_sector ON rabt_trips(status, sector_code);
-CREATE INDEX idx_trips_pickup_spatial ON rabt_trips USING GIST (pickup_location);
-
--- ====================================================================
--- 9. محرك المدفوعات
--- ====================================================================
-CREATE TABLE rabt_payments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    trip_id UUID NOT NULL UNIQUE REFERENCES rabt_trips(id) ON DELETE RESTRICT,
-    amount NUMERIC(10, 2) NOT NULL,
-    status rabt_payment_status NOT NULL DEFAULT 'pending',
-    transaction_reference VARCHAR(100) UNIQUE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CLOCK_TIMESTAMP(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CLOCK_TIMESTAMP(),
-    CONSTRAINT chk_payment_amount CHECK (amount > 0.00)
-);
-
-CREATE TRIGGER trg_update_rabt_payments BEFORE UPDATE ON rabt_payments 
-FOR EACH ROW EXECUTE FUNCTION update_rabt_timestamp();
-
--- ====================================================================
--- 10. نظام التلغيب (الشجرة)
--- ====================================================================
-CREATE TABLE rabt_trees (
-    user_id UUID PRIMARY KEY REFERENCES rabt_users(id) ON DELETE CASCADE,
-    growth_stage rabt_tree_stage NOT NULL DEFAULT 'seedling',
-    active_season rabt_season NOT NULL DEFAULT 'spring',
-    total_leaves INT NOT NULL DEFAULT 0,
-    total_fruits INT NOT NULL DEFAULT 0,
-    has_golden_halo BOOLEAN NOT NULL DEFAULT FALSE,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CLOCK_TIMESTAMP(),
-    CONSTRAINT chk_max_leaves CHECK (total_leaves <= 500),
-    CONSTRAINT chk_max_fruits CHECK (total_fruits <= 8)
-);
-
-CREATE TRIGGER trg_update_rabt_trees BEFORE UPDATE ON rabt_trees 
-FOR EACH ROW EXECUTE FUNCTION update_rabt_timestamp();
-
--- ====================================================================
--- 11. نظام السجلات الرقابية (RESTORED + HARDENED)
--- ====================================================================
-CREATE TABLE rabt_audit_logs (
-    id BIGSERIAL PRIMARY KEY,
-    table_name VARCHAR(50) NOT NULL,
-    action_type VARCHAR(10) NOT NULL,
-    record_id UUID NOT NULL,
-    old_data JSONB,
-    new_data JSONB,
-    performed_by VARCHAR(100) NOT NULL DEFAULT CURRENT_USER,
-    captured_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CLOCK_TIMESTAMP()
-);
-
-CREATE OR REPLACE FUNCTION process_rabt_audit_logging() RETURNS TRIGGER AS $$
-BEGIN
-    IF (TG_OP = 'DELETE') THEN
-        INSERT INTO rabt_audit_logs(table_name, action_type, record_id, old_data)
-        VALUES (TG_TABLE_NAME, 'DELETE', OLD.id, to_jsonb(OLD));
-        RETURN OLD;
-    ELSIF (TG_OP = 'UPDATE') THEN
-        INSERT INTO rabt_audit_logs(table_name, action_type, record_id, old_data, new_data)
-        VALUES (TG_TABLE_NAME, 'UPDATE', NEW.id, to_jsonb(OLD), to_jsonb(NEW));
-        RETURN NEW;
-    ELSIF (TG_OP = 'INSERT') THEN
-        INSERT INTO rabt_audit_logs(table_name, action_type, record_id, new_data)
-        VALUES (TG_TABLE_NAME, 'INSERT', NEW.id, to_jsonb(NEW));
-        RETURN NEW;
-    END IF;
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
-CREATE TRIGGER trg_audit_trips AFTER INSERT OR UPDATE OR DELETE ON rabt_trips
-FOR EACH ROW EXECUTE FUNCTION process_rabt_audit_logging();
-
-CREATE TRIGGER trg_audit_payments AFTER INSERT OR UPDATE OR DELETE ON rabt_payments
-FOR EACH ROW EXECUTE FUNCTION process_rabt_audit_logging();
-
--- ====================================================================
--- 12. محرك المطابقة الجغرافي (SECURITY DEFINER — تتجاوز RLS)
--- ====================================================================
-CREATE OR REPLACE FUNCTION match_nearest_driver(
-    p_sector_code VARCHAR,
-    p_lng NUMERIC,
-    p_lat NUMERIC,
-    p_search_radius_meters INT DEFAULT 5000
-) RETURNS UUID AS $$
+-- Nearest Driver Matching Function (Critical for Aggregator)
+CREATE OR REPLACE FUNCTION match_nearest_driver(p_pickup GEOMETRY(Point, 4326), p_sector_id UUID)
+RETURNS UUID AS $$
 DECLARE
-    v_matched_driver_id UUID;
+    matched_driver UUID;
 BEGIN
-    SELECT p.user_id INTO v_matched_driver_id
-    FROM rabt_driver_profiles p
-    JOIN rabt_driver_locations l ON p.user_id = l.driver_id
-    WHERE p.assigned_sector = p_sector_code
-      AND p.is_available = TRUE
-      AND ST_DWithin(l.live_coordinates, ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326)::geography, p_search_radius_meters)
-    ORDER BY ST_Distance(l.live_coordinates, ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326)::geography) ASC
+    SELECT dl.driver_id INTO matched_driver
+    FROM rabt_driver_locations dl
+    JOIN rabt_driver_profiles dp ON dl.driver_id = dp.driver_id
+    JOIN rabt_users u ON dl.driver_id = u.id
+    WHERE u.sector_id = p_sector_id
+      AND dp.is_online = TRUE
+      AND dp.is_available = TRUE
+      AND NOT EXISTS (
+          SELECT 1 FROM rabt_trips t 
+          WHERE t.driver_id = dl.driver_id 
+          AND t.status IN ('accepted', 'arrived', 'in_progress')
+      )
+    ORDER BY dl.location <-> p_pickup
     LIMIT 1;
-
-    RETURN v_matched_driver_id;
+    
+    RETURN matched_driver;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE plpgsql;
 
--- ====================================================================
--- 13. طبقة الحماية القصوى: Row-Level Security (RLS) على جميع الجداول الستة
--- ====================================================================
-ALTER TABLE rabt_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rabt_driver_profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rabt_driver_locations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rabt_trips ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rabt_payments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rabt_trees ENABLE ROW LEVEL SECURITY;
+-- Update Timestamp Trigger
+CREATE OR REPLACE FUNCTION update_modified_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
 
--- 1. سياسة المستخدمين والملفات الشخصية
-CREATE POLICY user_policy ON rabt_users FOR ALL 
-USING (id = get_rabt_context_user() OR current_user = 'super_admin');
-
--- 2. سياسة ملفات السائقين
-CREATE POLICY driver_profile_policy ON rabt_driver_profiles FOR ALL 
-USING (user_id = get_rabt_context_user() OR current_user = 'super_admin');
-
--- 3. سياسة تتبع الموقع الحي (السائق يحدثه، العميل يقرأ إذا كانت هناك رحلة نشطة)
-CREATE POLICY driver_location_policy ON rabt_driver_locations FOR ALL
-USING (
-    driver_id = get_rabt_context_user() 
-    OR current_user = 'super_admin'
-    OR EXISTS (
-        SELECT 1 FROM rabt_trips t 
-        WHERE t.driver_id = rabt_driver_locations.driver_id 
-          AND t.customer_id = get_rabt_context_user()
-          AND t.status IN ('accepted', 'arrived', 'active')
-    )
-);
-
--- 4. سياسة الرحلات (العميل والسائق فقط)
-CREATE POLICY trip_policy ON rabt_trips FOR ALL 
-USING (customer_id = get_rabt_context_user() OR driver_id = get_rabt_context_user() OR current_user = 'super_admin');
-
--- 5. سياسة المدفوعات (عبر ربط الرحلة)
-CREATE POLICY payment_policy ON rabt_payments FOR ALL
-USING (
-    current_user = 'super_admin'
-    OR EXISTS (
-        SELECT 1 FROM rabt_trips t 
-        WHERE t.id = rabt_payments.trip_id 
-          AND (t.customer_id = get_rabt_context_user() OR t.driver_id = get_rabt_context_user())
-    )
-);
-
--- 6. سياسة نظام التلغيب (الشجرة)
-CREATE POLICY tree_policy ON rabt_trees FOR ALL 
-USING (user_id = get_rabt_context_user() OR current_user = 'super_admin');
-
--- ====================================================================
--- 14. حقن البيانات الهيكلية الحقيقية للقطاعات
--- ====================================================================
-INSERT INTO rabt_sectors (sector_code, name_ar, name_en, base_fare, per_km_rate, per_minute_rate, is_operational) VALUES
-('S-01', 'ركاب', 'Passengers', 5.00, 1.50, 0.25, TRUE),
-('S-02', 'غاز', 'Gas Cylinder Delivery', 7.00, 2.00, 0.30, TRUE),
-('S-03', 'مياه', 'Water Supply', 6.50, 1.80, 0.28, TRUE),
-('S-04', 'شحن صغير', 'Micro Cargo', 8.00, 2.20, 0.35, TRUE),
-('S-05', 'شاحنات', 'Commercial Trucks', 25.00, 5.00, 0.80, TRUE),
-('S-06', 'ونشات', 'Towing & Rescue', 30.00, 6.00, 1.00, TRUE),
-('S-07', 'آليات', 'Heavy Machinery', 50.00, 12.00, 2.00, TRUE),
-('S-08', 'شحن كبير', 'Large Logistics', 40.00, 8.00, 1.50, TRUE),
-('S-09', 'خدمات خاصة', 'Special Services', 15.00, 3.50, 0.50, TRUE)
-ON CONFLICT (sector_code) DO UPDATE SET
-    name_ar = EXCLUDED.name_ar,
-    name_en = EXCLUDED.name_en,
-    base_fare = EXCLUDED.base_fare,
-    per_km_rate = EXCLUDED.per_km_rate,
-    per_minute_rate = EXCLUDED.per_minute_rate,
-    is_operational = EXCLUDED.is_operational;
-
--- ====================================================================
--- استعلام المطابقة الآمن (Geography — بدون Cast):
--- SELECT match_nearest_driver('S-02', 35.91, 31.95);
--- ====================================================================
-
--- ====================================================================
--- آلية التشفير: حفظ وقراءة الرقم القومي (Application-Level via Backend)
--- INSERT:
---   pgp_sym_encrypt('2001554897', current_setting('app.secret_encryption_key'))
--- SELECT (قراءة):
---   pgp_sym_decrypt(national_id_encrypted, current_setting('app.secret_encryption_key'))
--- ====================================================================
+CREATE TRIGGER update_user_modtime BEFORE UPDATE ON rabt_users FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
+CREATE TRIGGER update_driver_loc_modtime BEFORE UPDATE ON rabt_driver_locations FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
